@@ -36,15 +36,20 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.detour.core.settings.SettingsOp
 import dev.detour.dns.BlocklistGroup
+import dev.detour.guard.data.BlocklistRepository
 import dev.detour.guard.detourApp
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 @Composable
 fun BlocklistScreen(onBack: () -> Unit) {
     val app = LocalContext.current.detourApp
     val groups by app.blocklist.groups.collectAsStateWithLifecycle(emptyList())
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val change: (SettingsOp, String) -> Unit = { op, d -> scope.launch { submitChange(context, op, d) } }
 
     Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
         Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -55,8 +60,8 @@ fun BlocklistScreen(onBack: () -> Unit) {
             item {
                 Text(
                     "Sites that won't load in Chrome while Detour Filter is on. A domain also covers everything " +
-                        "under it (youtube.com covers m.youtube.com). Changes apply right away for now. A later " +
-                        "update makes unblocking wait 24 hours.",
+                        "under it (youtube.com covers m.youtube.com). Blocking applies right away; unblocking or " +
+                        "removing a domain waits 24 hours.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -64,14 +69,21 @@ fun BlocklistScreen(onBack: () -> Unit) {
             items(groups, key = { it.id }) { group ->
                 GroupCard(
                     group = group,
-                    onBlocked = { scope.launch { app.blocklist.setBlocked(group.id, it) } },
-                    onAdd = { domain, done -> scope.launch { done(app.blocklist.addDomain(group.id, domain)) } },
-                    onRemove = { scope.launch { app.blocklist.removeDomain(group.id, it) } },
-                    onDelete = { scope.launch { app.blocklist.deleteGroup(group.id) } },
+                    onBlocked = { change(SettingsOp.SetGroupBlocked(group.id, it), "${group.name} ${if (it) "blocked" else "unblocked"}") },
+                    onAdd = { input, done ->
+                        val domain = BlocklistRepository.normalizeDomain(input)
+                        if (domain != null) change(SettingsOp.AddDomain(group.id, domain), "Block $domain")
+                        done(domain != null)
+                    },
+                    onRemove = { change(SettingsOp.RemoveDomain(group.id, it), "Unblock $it (${group.name})") },
+                    onDelete = { change(SettingsOp.DeleteGroup(group.id), "Delete group ${group.name}") },
                 )
             }
             item {
-                OutlinedButton(onClick = { scope.launch { app.blocklist.addGroup("My sites") } }, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = { change(SettingsOp.AddGroup("custom-" + UUID.randomUUID().toString().take(8), "My sites"), "New group") },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Text("Add a group")
                 }
             }

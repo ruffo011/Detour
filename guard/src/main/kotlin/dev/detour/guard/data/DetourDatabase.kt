@@ -92,6 +92,31 @@ data class BlocklistGroupEntity(
     val position: Int,
 )
 
+/** A loosening change waiting its 24 hours. [op] is a [dev.detour.core.settings.SettingsOp] line. */
+@Entity(tableName = "pending_change")
+data class PendingChangeEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val op: String,
+    val description: String,
+    val createdAtMs: Long,
+    val applyAtMs: Long,
+)
+
+@Dao
+interface PendingDao {
+    @Query("SELECT * FROM pending_change ORDER BY applyAtMs")
+    fun observeAll(): Flow<List<PendingChangeEntity>>
+
+    @Query("SELECT * FROM pending_change ORDER BY applyAtMs")
+    suspend fun all(): List<PendingChangeEntity>
+
+    @Insert
+    suspend fun insert(change: PendingChangeEntity): Long
+
+    @Query("DELETE FROM pending_change WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
 @Dao
 interface BlocklistDao {
     @Query("SELECT * FROM blocklist_group ORDER BY position, id")
@@ -163,6 +188,12 @@ interface AlternativeDao {
     @Query("DELETE FROM alternative WHERE id = :id AND isRideItOut = 0")
     suspend fun delete(id: Long)
 
+    @Query("DELETE FROM alternative WHERE isRideItOut = 0")
+    suspend fun deleteAllEditable()
+
+    @Query("SELECT * FROM alternative_choice ORDER BY chosenAtMs")
+    suspend fun allChoices(): List<AlternativeChoiceEntity>
+
     @Insert
     suspend fun insertChoice(choice: AlternativeChoiceEntity): Long
 
@@ -194,14 +225,16 @@ interface IntentionDao {
         AlternativeChoiceEntity::class,
         IntentionEntity::class,
         BlocklistGroupEntity::class,
+        PendingChangeEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4)],
 )
 abstract class DetourDatabase : RoomDatabase() {
     abstract fun classifications(): ClassificationDao
     abstract fun blocklist(): BlocklistDao
+    abstract fun pending(): PendingDao
     abstract fun lapses(): LapseDao
     abstract fun usage(): UsageDao
     abstract fun alternatives(): AlternativeDao

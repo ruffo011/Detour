@@ -74,6 +74,11 @@ fun InterventionScreen(
     var feeling by remember { mutableStateOf<Feeling?>(null) }
     var ridingOut by remember { mutableStateOf(false) }
 
+    if (info.mode == InterventionMode.SETTINGS_GUARD) {
+        SettingsGuardScreen(info, shownAtMs, onContinue = { reason -> onContinue(Feeling.OTHER, reason) }, onGoHome = onGoHome)
+        return
+    }
+
     if (ridingOut) {
         RideItOut(onGoHome)
         return
@@ -185,6 +190,50 @@ private fun PauseSection(
     }
 }
 
+/** The Settings guard: a 60-second pause and a typed reason. Friction, not a lock. */
+@Composable
+private fun SettingsGuardScreen(info: InterventionInfo, shownAtMs: Long, onContinue: (String) -> Unit, onGoHome: () -> Unit) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(250)
+        }
+    }
+    var reason by remember { mutableStateOf("") }
+    val remaining = (info.waitSeconds - ((now - shownAtMs) / 1000).toInt()).coerceAtLeast(0)
+    val reasonOk = reason.trim().length >= MIN_INTENTION_CHARS
+
+    Column(
+        Modifier.fillMaxSize().safeDrawingPadding().imePadding().verticalScroll(rememberScrollState())
+            .padding(horizontal = 28.dp, vertical = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text("Changing a protection setting?", fontSize = 30.sp, lineHeight = 38.sp)
+        Text(
+            "This page can turn parts of Detour off. Take a minute first. It's a pause, not a lock: " +
+                "afterwards you can go ahead.",
+            fontSize = 19.sp, lineHeight = 28.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedTextField(
+            value = reason,
+            onValueChange = { reason = it },
+            label = { Text("Why are you changing this?") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2,
+        )
+        if (!reasonOk) {
+            Text("To continue: write at least $MIN_INTENTION_CHARS characters.", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Button(
+            onClick = { onContinue(reason) },
+            enabled = remaining == 0 && reasonOk,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+        ) { Text(if (remaining > 0) "Continue in $remaining s" else "Continue", fontSize = 17.sp) }
+        TextButton(onClick = onGoHome) { Text("Go to home screen", fontSize = 17.sp) }
+    }
+}
+
 @Composable
 private fun AlternativeCard(ranked: RankedAlternative, onClick: () -> Unit) {
     val alt = ranked.alternative
@@ -255,6 +304,7 @@ private fun title(info: InterventionInfo, appLabel: String) = when (info.mode) {
     InterventionMode.OUT_OF_BUDGET -> "Today's time is used up."
     InterventionMode.OUTSIDE_HOURS -> "Not right now."
     InterventionMode.OPENS_CAP -> "That's today's opens."
+    InterventionMode.SETTINGS_GUARD -> "Changing a protection setting?"
 }
 
 private fun subtitle(info: InterventionInfo) = when (info.mode) {
@@ -264,4 +314,5 @@ private fun subtitle(info: InterventionInfo) = when (info.mode) {
     InterventionMode.OUTSIDE_HOURS ->
         "Distracting apps are available ${info.allowedHoursText ?: "during your allowed hours"}."
     InterventionMode.OPENS_CAP -> "You set a limit on how many times a day these apps open."
+    InterventionMode.SETTINGS_GUARD -> "Take a minute first."
 }

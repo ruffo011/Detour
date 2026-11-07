@@ -40,6 +40,7 @@ import android.provider.Settings
 import androidx.compose.runtime.rememberCoroutineScope
 import dev.detour.core.budget.BudgetSettings
 import dev.detour.core.health.HealthIssue
+import dev.detour.core.settings.SettingsOp
 import dev.detour.guard.data.TodayUsage
 import dev.detour.guard.detect.DetectorService
 import dev.detour.guard.detourApp
@@ -72,12 +73,17 @@ fun HomeScreen(
     onOpenBudget: () -> Unit,
     onOpenAlternatives: () -> Unit,
     onOpenBlocklist: () -> Unit,
+    onOpenPending: () -> Unit,
+    onOpenSettingsGuard: () -> Unit,
+    onOpenBackup: () -> Unit,
 ) {
     val context = LocalContext.current
     val app = context.detourApp
     val today by app.usage.today.collectAsStateWithLifecycle()
     val settings by app.settings.settings.collectAsStateWithLifecycle()
     val health by app.health.state.collectAsStateWithLifecycle()
+    val pending by app.changes.pending.collectAsStateWithLifecycle(emptyList())
+    val backup by app.backup.status.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var refreshTick by remember { mutableIntStateOf(0) }
     val status = remember(refreshTick) { readStatus(context) }
@@ -87,6 +93,7 @@ fun HomeScreen(
         refreshTick++
         DetectorService.startIfPermitted(context)
         val job = scope.launch {
+            app.changes.applyDue()
             delay(800) // give a just-started detector a moment before checking it
             withContext(Dispatchers.IO) { app.health.check() }
         }
@@ -121,6 +128,24 @@ fun HomeScreen(
             FilterLine(h)
         }
 
+        if (backup.foundBackupMs != null || backup.folderUri == null) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        if (backup.foundBackupMs != null) "A backup was found. Restore it or start fresh."
+                        else "Choose a backup folder, so a reinstall can restore everything in about a minute.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    OutlinedButton(onClick = onOpenBackup) { Text(if (backup.foundBackupMs != null) "Review backup" else "Set up backup") }
+                }
+            }
+        }
+        if (pending.isNotEmpty()) {
+            TextButton(onClick = onOpenPending) {
+                Text("${pending.size} change${if (pending.size == 1) "" else "s"} waiting 24 hours · next ${timeUntil(pending.first().applyAtMs)}")
+            }
+        }
+
         val baseline = remember(settings) { app.settings.baseline() }
         if (baseline != null && !settings.budgetConfirmed && settings.dailyBudgetMinutes != null) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
@@ -132,7 +157,7 @@ fun HomeScreen(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { app.settings.update { it.copy(budgetConfirmed = true) } }) {
+                        Button(onClick = { scope.launch { submitChange(context, SettingsOp.SetBudgetConfirmed(true), "Budget confirmed") } }) {
                             Text("Keep ${settings.dailyBudgetMinutes} min")
                         }
                         OutlinedButton(onClick = onOpenBudget) { Text("Adjust") }
@@ -187,6 +212,15 @@ fun HomeScreen(
         }
         OutlinedButton(onClick = onOpenBlocklist, modifier = Modifier.fillMaxWidth().height(52.dp)) {
             Text("Browser blocklist")
+        }
+        OutlinedButton(onClick = onOpenSettingsGuard, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Text("Settings guard")
+        }
+        OutlinedButton(onClick = onOpenPending, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Text(if (pending.isEmpty()) "Pending changes" else "Pending changes (${pending.size})")
+        }
+        OutlinedButton(onClick = onOpenBackup, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Text("Backup")
         }
 
         Text(

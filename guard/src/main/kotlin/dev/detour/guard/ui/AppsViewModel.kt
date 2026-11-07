@@ -5,7 +5,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.detour.core.AppCategory
 import dev.detour.core.Resolution
+import dev.detour.core.settings.SettingsOp
 import dev.detour.guard.DetourApp
+import dev.detour.guard.data.label
 import dev.detour.guard.system.InstalledApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,7 +40,9 @@ class AppsViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setCategory(packageName: String, category: AppCategory) {
-        viewModelScope.launch { detour.classifications.setChoice(packageName, category) }
+    fun setCategory(app: InstalledApp, category: AppCategory) {
+        viewModelScope.launch {
+            submitChange(detour, SettingsOp.SetCategory(app.packageName, category), "${app.label} → ${category.label()}")
+        }
     }
 }

@@ -17,10 +17,7 @@ class ClassificationRepository(private val dao: ClassificationDao, scope: Corout
         }
         .stateIn(scope, SharingStarted.Eagerly, null)
 
-    /**
-     * Stores a choice. Milestone 5 routes loosening changes through the 24-hour queue;
-     * until then every change applies immediately.
-     */
+    /** Stores a choice directly. Only ChangeQueue calls this (it applies the 24-hour rule). */
     suspend fun setChoice(packageName: String, category: AppCategory) {
         dao.upsert(AppClassificationEntity(packageName, category.name, System.currentTimeMillis()))
     }

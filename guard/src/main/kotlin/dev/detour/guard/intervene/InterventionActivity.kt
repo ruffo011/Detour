@@ -107,6 +107,13 @@ class InterventionActivity : ComponentActivity() {
     private fun continueToApp(feeling: Feeling, intention: String) {
         val current = info ?: return goHome()
         val app = detourApp
+        if (current.mode == InterventionMode.SETTINGS_GUARD) {
+            // Let that app's settings screens through for a few minutes, and return to the page.
+            app.appScope.launch { app.alternatives.saveIntention("settings:${current.packageName}", intention, null) }
+            app.settingsGuardPolicy.permit(current.packageName, System.currentTimeMillis())
+            finish()
+            return
+        }
         app.appScope.launch { app.alternatives.saveIntention(current.packageName, intention, feeling) }
         app.session.permit(current.packageName, System.currentTimeMillis(), app.settings.current.sessionCheckInMinutes)
         val launch = packageManager.getLaunchIntentForPackage(current.packageName)

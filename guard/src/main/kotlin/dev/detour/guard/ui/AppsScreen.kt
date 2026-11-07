@@ -62,8 +62,8 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit) {
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             item {
                 Text(
-                    "Blocked apps can't be opened. Distracting apps share one daily time budget " +
-                        "(coming in the next update). Allowed apps are never interrupted.",
+                    "Blocked apps can't be opened. Distracting apps share one daily time budget. Allowed apps " +
+                        "are never interrupted. Stricter choices apply right away; looser ones take 24 hours.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
@@ -79,7 +79,7 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit) {
                     )
                 }
                 items(section.rows, key = { "${section.title}-${it.app.packageName}" }) { row ->
-                    AppRowItem(row, onSelect = { viewModel.setCategory(row.app.packageName, it) })
+                    AppRowItem(row, onSelect = { viewModel.setCategory(row.app, it) })
                     HorizontalDivider(Modifier.padding(horizontal = 24.dp))
                 }
             }

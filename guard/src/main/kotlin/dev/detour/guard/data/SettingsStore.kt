@@ -12,8 +12,8 @@ import java.time.LocalTime
 import java.time.ZoneId
 
 /**
- * Budget settings, kept in SharedPreferences. Milestone 5 routes loosening changes through the
- * 24-hour queue; until then [update] applies everything immediately.
+ * Budget settings, kept in SharedPreferences. [update] writes directly: only ChangeQueue (which
+ * applies the tighten/loosen rule) and internal tightening steps may call it, never UI code.
  */
 class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences("budget_settings", Context.MODE_PRIVATE)

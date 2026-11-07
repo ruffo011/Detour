@@ -167,6 +167,7 @@ class DetectorService : Service() {
         val events = withContext(Dispatchers.Default) { readEventsSince(lastEventTimeMs, now) }
         events.lastOrNull()?.let { lastEventTimeMs = it.timeMs }
         tracker.onEvents(events)
+        events.filter { it.type == UsageEvent.Type.RESUMED }.forEach { app.recentScreens.add(it.packageName, it.className, it.timeMs) }
 
         val fg = tracker.current
         val choices = app.classifications.choices.value ?: return
@@ -178,9 +179,11 @@ class DetectorService : Service() {
         maybeFinishObserving(now)
 
         val settings = app.settings.current
-        var info: InterventionInfo? = null
+        var info: InterventionInfo? = fg?.let { settingsGuardInfo(it.packageName, it.className, now) }
         var allowedSession = false
-        if (fg != null && category == AppCategory.BLOCKED) {
+        if (info != null) {
+            // Settings guard pause takes precedence.
+        } else if (fg != null && category == AppCategory.BLOCKED) {
             info = InterventionInfo(fg.packageName, InterventionMode.BLOCKED)
         } else if (distractingPkg != null) {
             val decision = DistractingGate.decide(
@@ -230,11 +233,30 @@ class DetectorService : Service() {
         if (now - lastHealthCheckMs > HEALTH_CHECK_MS) {
             lastHealthCheckMs = now
             withContext(Dispatchers.IO) { app.health.check(detectorRunning = true) }
+            app.changes.applyDue(now) // loosening changes whose 24 hours are up
         }
         heartbeat(now)
     }
 
     private suspend fun maybeFinishObserving(now: Long) = ObserveWeek.finishIfDue(detourApp, now)
+
+    /** The Settings guard's 60-second pause, if this screen is one it watches. */
+    private fun settingsGuardInfo(packageName: String, className: String?, now: Long): InterventionInfo? {
+        val app = detourApp
+        val calibrating = app.recentScreens.calibrating
+            ?.takeIf { (screen, since) -> now - since < CALIBRATION_WINDOW_MS && !app.settingsGuard.isCalibrated(screen) }
+        val firstStarted = prefs.getLong(KEY_FIRST_STARTED, now)
+        val pause = app.settingsGuardPolicy.shouldPause(
+            packageName = packageName,
+            className = className,
+            enabled = app.settingsGuard.enabled.value,
+            targets = app.settingsGuard.targets.value,
+            nowMs = now,
+            suppressedKeys = setOfNotNull(calibrating?.first?.name),
+            inSetupGrace = now - firstStarted < SETUP_GRACE_MS,
+        )
+        return if (pause) InterventionInfo(packageName, InterventionMode.SETTINGS_GUARD, waitSeconds = SETTINGS_PAUSE_SECONDS) else null
+    }
 
     /** On unlock: if you chose an alternative 10+ minutes ago, ask how it went. */
     private suspend fun offerCheckIn() {
@@ -292,6 +314,7 @@ class DetectorService : Service() {
             }
         }
         prefs.edit().putBoolean(KEY_CLEAN_STOP, false).putLong(KEY_HEARTBEAT, now).apply()
+        if (!prefs.contains(KEY_FIRST_STARTED)) prefs.edit().putLong(KEY_FIRST_STARTED, now).apply()
         lastHeartbeatMs = now
     }
 
@@ -332,6 +355,10 @@ class DetectorService : Service() {
         private const val QUERY_OVERLAP_MS = 2_000L
         private const val KEEPALIVE_CHECK_MS = 5_000L
         private const val HEALTH_CHECK_MS = 30_000L
+        private const val KEY_FIRST_STARTED = "first_started"
+        private const val SETUP_GRACE_MS = 60 * 60_000L
+        private const val CALIBRATION_WINDOW_MS = 3 * 60_000L
+        const val SETTINGS_PAUSE_SECONDS = 60
 
         /** True while the detector is alive in this process (read by the health check). */
         @Volatile var isRunning = false

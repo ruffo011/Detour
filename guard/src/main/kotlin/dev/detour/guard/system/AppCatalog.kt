@@ -40,6 +40,11 @@ class AppCatalog(private val context: Context) {
     val allowedBrowser: String
         get() = prefs.getString(KEY_ALLOWED_BROWSER, DefaultClassifications.CHROME)!!
 
+    fun setAllowedBrowser(packageName: String) {
+        prefs.edit().putString(KEY_ALLOWED_BROWSER, packageName).apply()
+        invalidate()
+    }
+
     fun invalidate() {
         snapshot = null
     }

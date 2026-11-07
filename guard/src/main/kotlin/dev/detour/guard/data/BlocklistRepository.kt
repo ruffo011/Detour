@@ -9,11 +9,13 @@ import dev.detour.dns.FilterConfig
 import dev.detour.ipc.DetourIpc
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import java.util.UUID
 
 /**
  * The browser blocklist, owned by guard. filter reads it through FilterConfigProvider and is
  * told about changes with a signature-protected broadcast.
+ *
+ * The write methods here apply directly; the UI never calls them, it goes through ChangeQueue
+ * so unblocking/removing waits 24 hours.
  */
 class BlocklistRepository(
     private val context: Context,
@@ -22,31 +24,25 @@ class BlocklistRepository(
 ) {
     val groups: Flow<List<BlocklistGroup>> = dao.observeAll().map { rows -> rows.map { it.toModel() } }
 
+    suspend fun all(): List<BlocklistGroup> = dao.all().map { it.toModel() }
+
     suspend fun seedIfEmpty() {
         if (dao.count() > 0) return
         DefaultBlocklist.GROUPS.forEachIndexed { i, g -> dao.upsert(g.toEntity(i)) }
         notifyFilter()
     }
 
-    /** Milestone 5 routes unblocking/removing through the 24-hour queue; for now it's immediate. */
     suspend fun setBlocked(id: String, blocked: Boolean) = edit(id) { it.copy(blocked = blocked) }
 
-    /** Adds a domain (normalized); returns false if it isn't a valid domain. */
-    suspend fun addDomain(id: String, domain: String): Boolean {
-        val normalized = DomainMatcher.normalize(domain.removePrefix("https://").removePrefix("http://").substringBefore('/'))
-            ?.takeIf { '.' in it } ?: return false
-        edit(id) { it.copy(domains = (it.domains + normalized).distinct()) }
-        return true
-    }
+    suspend fun addDomain(id: String, domain: String) = edit(id) { it.copy(domains = (it.domains + domain).distinct()) }
 
     suspend fun removeDomain(id: String, domain: String) = edit(id) { it.copy(domains = it.domains - domain) }
 
-    suspend fun addGroup(name: String): String {
-        val id = "custom-" + UUID.randomUUID().toString().take(8)
+    suspend fun addGroup(id: String, name: String) {
+        if (dao.all().any { it.id == id }) return
         val position = (dao.all().maxOfOrNull { it.position } ?: -1) + 1
         dao.upsert(BlocklistGroup(id, name.trim().ifEmpty { "My sites" }, emptyList(), blocked = true).toEntity(position))
         notifyFilter()
-        return id
     }
 
     suspend fun deleteGroup(id: String) {
@@ -84,4 +80,11 @@ class BlocklistRepository(
 
     private fun BlocklistGroup.toEntity(position: Int) =
         BlocklistGroupEntity(id, name, domains.joinToString(","), blocked, position)
+
+    companion object {
+        /** "https://www.TikTok.com/foo" -> "www.tiktok.com"; null if it isn't a domain. */
+        fun normalizeDomain(input: String): String? =
+            DomainMatcher.normalize(input.trim().removePrefix("https://").removePrefix("http://").substringBefore('/'))
+                ?.takeIf { '.' in it && ' ' !in it }
+    }
 }

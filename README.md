@@ -12,11 +12,11 @@ Play Store. It is two apps built from this one project:
 
 No Accessibility service, no Device Admin, no analytics, ads or crash reporting.
 
-> **Status:** milestone 4. Blocked apps are blocked. Distracting apps share a daily budget and
+> **Status:** milestone 5. Blocked apps are blocked. Distracting apps share a daily budget and
 > go through a pause before every open. Detour Filter blocks YouTube, Facebook, Instagram,
-> Reddit and Snapchat in Chrome, and Detour checks that every part of protection stays on.
-> For now, all settings changes apply immediately in both directions. The 24-hour delay on
-> loosening arrives in milestone 5.
+> Reddit and Snapchat in Chrome. Detour checks that every part of protection stays on. Loosening
+> any setting waits 24 hours, Settings pages that could turn Detour off get a 60-second pause,
+> and everything is backed up to a folder you choose.
 
 ---
 
@@ -218,7 +218,51 @@ off you get:
 - a banner in Detour with a **Fix** button
 - a neutral entry in the lapse log, which the weekly review will show later
 
-## 9. Onboarding
+## 9. Easy to tighten, slow to loosen (milestone 5)
+
+Every change to a protected setting goes through one function, `classify(old, new)` in
+`core/.../settings/ProtectedSettings.kt`:
+- **Tighter** applies immediately: a stricter app category, less daily time, a lower opens
+  limit, shorter allowed hours, longer waits, more frequent check-ins, a shorter "new open"
+  time, blocking a group or adding a domain, Settings guard on or guarding another page, ending
+  the observe week.
+- **Looser** waits **24 hours** and shows under **Pending changes**, where you can cancel it:
+  the reverse of all of the above, plus *any* change to the new-day time and changing the
+  allowed browser.
+- **Neutral** applies immediately: alternatives, confirming the suggested budget.
+
+If a change makes anything looser, the whole change counts as looser, and anything ambiguous
+counts as looser. Pending changes are stored as single steps ("daily time → 35 min"), so they
+apply on top of whatever you changed in the meantime.
+
+## 10. Settings guard (milestone 5)
+
+Opening a page that could turn Detour off brings up a **60-second pause** and *"Why are you
+changing this?"* (at least 10 characters). Then you can go ahead, and that app's settings
+pages pass for 5 minutes. It's friction, not a lock. It stays quiet for the first hour after
+Detour starts, so the initial setup isn't interrupted.
+
+The guarded pages are Usage access, Display over other apps, VPN, Battery optimization, Chrome's
+settings (where *Use secure DNS* lives), Detour's and Detour Filter's App info pages, and
+optionally Private DNS. Pixel/AOSP names are built in. Because page names differ between phones,
+**Settings guard → Open** lets you open each page once so Detour records its real name. On a
+Pixel 8 with Android 17, App info is `com.android.settings.applications.InstalledAppDetailsTop`.
+
+## 11. Backup and restore (milestone 5)
+
+**Backup → Choose backup folder.** Make a new folder (e.g. `Documents/Detour`) rather than
+choosing one with other files in it, because Detour gets access to the whole folder you pick.
+Detour writes `detour-backup.json` there a few seconds after every change: categories, budget
+and hours, blocklist, browser, Settings guard and its pages, pending changes (with their original
+times), alternatives, and what helped. Usage history and typed intentions aren't included.
+
+**Restoring after a reinstall:** choose the same folder. Detour finds the backup and offers
+**Restore** or **Start fresh**. A restore can't loosen anything: each value that differs goes
+through the same 24-hour rule, so anything looser than the fresh install waits 24 hours. Pending
+changes keep their original times. Restore only adds or tightens, and never removes things that
+are missing from the backup.
+
+## 12. Onboarding
 
 *(Milestone 6 adds the full guided flow. The steps it will cover on a Pixel 8:)*
 

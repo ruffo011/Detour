@@ -17,6 +17,9 @@ enum class InterventionMode {
 
     /** Opens cap reached: alternatives or home. */
     OPENS_CAP,
+
+    /** A Settings screen that can turn protection off: 60 s pause + reason, then allowed through. */
+    SETTINGS_GUARD,
 }
 
 /** What the detector knew when it opened the intervention. Passed as intent extras. */

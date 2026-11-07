@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.detour.core.budget.BudgetSettings
+import dev.detour.core.settings.SettingsOp
 import dev.detour.core.time.AllowedHours
 import dev.detour.guard.data.ObserveWeek
 import dev.detour.guard.detourApp
@@ -49,7 +50,9 @@ fun BudgetScreen(onBack: () -> Unit) {
     val app = LocalContext.current.detourApp
     val settings by app.settings.settings.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
-    val update: ((BudgetSettings) -> BudgetSettings) -> Unit = { app.settings.update(it) }
+    val context = LocalContext.current
+    val change: (SettingsOp, String) -> Unit = { op, description -> scope.launch { submitChange(context, op, description) } }
+    val pending by app.changes.pending.collectAsStateWithLifecycle(emptyList())
     val now = System.currentTimeMillis()
 
     Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
@@ -75,36 +78,48 @@ fun BudgetScreen(onBack: () -> Unit) {
             }
 
             Text(
-                "Changes apply right away for now. A later update makes loosening changes wait 24 hours.",
+                "Stricter changes apply right away. Looser ones wait 24 hours and show under Pending changes, " +
+                    "where you can cancel them." + if (pending.isNotEmpty()) " Waiting now: ${pending.size}." else "",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             Section("Daily time for Distracting apps", "Shared by all of them, so running out on one doesn't move you to another.") {
+                val budget = settings.dailyBudgetMinutes
                 Stepper(
-                    value = settings.dailyBudgetMinutes?.let { "$it min" } ?: "Not set yet",
-                    onMinus = { update { s -> s.copy(dailyBudgetMinutes = ((s.dailyBudgetMinutes ?: 60) - 5).coerceAtLeast(5), budgetConfirmed = true) } },
-                    onPlus = { update { s -> s.copy(dailyBudgetMinutes = ((s.dailyBudgetMinutes ?: 55) + 5).coerceAtMost(600), budgetConfirmed = true) } },
+                    value = budget?.let { "$it min" } ?: "Not set yet",
+                    onMinus = {
+                        val next = ((budget ?: 60) - 5).coerceAtLeast(5)
+                        change(SettingsOp.SetDailyBudget(next), "Daily time → $next min")
+                        change(SettingsOp.SetBudgetConfirmed(true), "Budget confirmed")
+                    },
+                    onPlus = {
+                        val next = ((budget ?: 55) + 5).coerceAtMost(600)
+                        change(SettingsOp.SetDailyBudget(next), "Daily time → $next min")
+                        change(SettingsOp.SetBudgetConfirmed(true), "Budget confirmed")
+                    },
                 )
             }
 
             Section("Allowed hours", "The time can only be spent inside this window.") {
                 val hours = settings.allowedHours
                 SwitchRow("Limit to allowed hours", hours != null) { on ->
-                    update { it.copy(allowedHours = if (on) AllowedHours.DEFAULT else null) }
+                    val h = if (on) AllowedHours.DEFAULT else null
+                    change(SettingsOp.SetAllowedHours(h), if (on) "Allowed hours on" else "Allowed hours off")
                 }
                 if (hours != null) {
+                    fun set(h: AllowedHours) = change(SettingsOp.SetAllowedHours(h), "Allowed hours → ${h.start.format(TIME)}–${h.end.format(TIME)}")
                     Stepper(
                         label = "From",
                         value = hours.start.format(TIME),
-                        onMinus = { update { it.copy(allowedHours = hours.copy(start = hours.start.minusMinutes(30))) } },
-                        onPlus = { update { it.copy(allowedHours = hours.copy(start = hours.start.plusMinutes(30))) } },
+                        onMinus = { set(hours.copy(start = hours.start.minusMinutes(30))) },
+                        onPlus = { set(hours.copy(start = hours.start.plusMinutes(30))) },
                     )
                     Stepper(
                         label = "Until",
                         value = hours.end.format(TIME),
-                        onMinus = { update { it.copy(allowedHours = hours.copy(end = hours.end.minusMinutes(30))) } },
-                        onPlus = { update { it.copy(allowedHours = hours.copy(end = hours.end.plusMinutes(30))) } },
+                        onMinus = { set(hours.copy(end = hours.end.minusMinutes(30))) },
+                        onPlus = { set(hours.copy(end = hours.end.plusMinutes(30))) },
                     )
                 }
             }
@@ -115,18 +130,22 @@ fun BudgetScreen(onBack: () -> Unit) {
                     "away, including times you went home from the pause.",
             ) {
                 val cap = settings.opensCap
-                SwitchRow("Limit opens", cap != null) { on -> update { it.copy(opensCap = if (on) 10 else null) } }
+                SwitchRow("Limit opens", cap != null) { on ->
+                    change(SettingsOp.SetOpensCap(if (on) 10 else null), if (on) "Opens limit → 10" else "Opens limit off")
+                }
                 if (cap != null) {
                     Stepper(
                         value = "$cap opens",
-                        onMinus = { update { it.copy(opensCap = (cap - 1).coerceAtLeast(1)) } },
-                        onPlus = { update { it.copy(opensCap = cap + 1) } },
+                        onMinus = { (cap - 1).coerceAtLeast(1).let { change(SettingsOp.SetOpensCap(it), "Opens limit → $it") } },
+                        onPlus = { change(SettingsOp.SetOpensCap(cap + 1), "Opens limit → ${cap + 1}") },
                     )
                 }
             }
 
             Section("Wait before each open", "Seconds, getting longer with each open today. The last number repeats.") {
-                WaitsField(settings.waitsSeconds) { waits -> update { it.copy(waitsSeconds = waits) } }
+                WaitsField(settings.waitsSeconds) { waits ->
+                    change(SettingsOp.SetWaits(waits), "Waits → ${waits.joinToString(", ")} s")
+                }
             }
 
             Section(
@@ -140,28 +159,30 @@ fun BudgetScreen(onBack: () -> Unit) {
                     value = formatSeconds(current),
                     onMinus = {
                         val next = choices.lastOrNull { it < current } ?: choices.first()
-                        update { it.copy(reopenAfterSeconds = next) }
+                        change(SettingsOp.SetReopenSeconds(next), "New open after ${formatSeconds(next)}")
                     },
                     onPlus = {
                         val next = choices.firstOrNull { it > current } ?: choices.last()
-                        update { it.copy(reopenAfterSeconds = next) }
+                        change(SettingsOp.SetReopenSeconds(next), "New open after ${formatSeconds(next)}")
                     },
                 )
             }
 
             Section("Check-in during use", "“Still doing what you came for?” after this long in one session.") {
+                val m = settings.sessionCheckInMinutes
                 Stepper(
-                    value = "${settings.sessionCheckInMinutes} min",
-                    onMinus = { update { it.copy(sessionCheckInMinutes = (it.sessionCheckInMinutes - 1).coerceAtLeast(1)) } },
-                    onPlus = { update { it.copy(sessionCheckInMinutes = (it.sessionCheckInMinutes + 1).coerceAtMost(120)) } },
+                    value = "$m min",
+                    onMinus = { (m - 1).coerceAtLeast(1).let { change(SettingsOp.SetCheckInMinutes(it), "Check-in after $it min") } },
+                    onPlus = { (m + 1).coerceAtMost(120).let { change(SettingsOp.SetCheckInMinutes(it), "Check-in after $it min") } },
                 )
             }
 
-            Section("New day starts at", "So late-night use doesn't get a fresh budget at midnight.") {
+            Section("New day starts at", "So late-night use doesn't get a fresh budget at midnight. Any change here waits 24 hours.") {
+                val r = settings.resetTime
                 Stepper(
-                    value = settings.resetTime.format(TIME),
-                    onMinus = { update { it.copy(resetTime = it.resetTime.minusMinutes(30)) } },
-                    onPlus = { update { it.copy(resetTime = it.resetTime.plusMinutes(30)) } },
+                    value = r.format(TIME),
+                    onMinus = { r.minusMinutes(30).let { change(SettingsOp.SetResetTime(it), "New day at ${it.format(TIME)}") } },
+                    onPlus = { r.plusMinutes(30).let { change(SettingsOp.SetResetTime(it), "New day at ${it.format(TIME)}") } },
                 )
             }
         }
@@ -173,13 +194,14 @@ private fun WaitsField(waits: List<Int>, onValid: (List<Int>) -> Unit) {
     var text by remember(waits) { mutableStateOf(waits.joinToString(", ")) }
     val parsed = text.split(',').map { it.trim() }.filter { it.isNotEmpty() }.map { it.toIntOrNull() }
     val valid = parsed.isNotEmpty() && parsed.all { it != null && it in 0..600 }
+    val changed = valid && parsed.filterNotNull() != waits
+    if (changed) {
+        // Saved explicitly, not per keystroke: half-typed values would queue as loosening changes.
+        TextButton(onClick = { onValid(parsed.filterNotNull()) }) { Text("Save waits") }
+    }
     OutlinedTextField(
         value = text,
-        onValueChange = {
-            text = it
-            val p = it.split(',').map { s -> s.trim() }.filter { s -> s.isNotEmpty() }.map { s -> s.toIntOrNull() }
-            if (p.isNotEmpty() && p.all { v -> v != null && v in 0..600 }) onValid(p.filterNotNull())
-        },
+        onValueChange = { text = it },
         isError = !valid,
         supportingText = { Text(if (valid) "e.g. 5, 15, 30, 60" else "Numbers from 0 to 600, separated by commas") },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
