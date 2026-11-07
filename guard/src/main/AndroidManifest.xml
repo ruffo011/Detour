@@ -97,6 +97,22 @@
                 android:value="Digital wellbeing: detects when an app the user chose to limit is opened, so a pause screen can be shown." />
         </service>
 
+        <!--
+          guard -> filter: the browser blocklist. Exported, but only apps holding the signature
+          permission (filter, signed with the same key) can read it. Nothing personal is served.
+        -->
+        <provider
+            android:name=".filter.FilterConfigProvider"
+            android:authorities="dev.detour.guard.filterconfig"
+            android:exported="true"
+            android:readPermission="dev.detour.permission.IPC"
+            android:writePermission="dev.detour.permission.IPC" />
+
+        <!-- Re-posts the "protection is partly off" notification if swiped away. -->
+        <receiver
+            android:name=".health.HealthNotificationReceiver"
+            android:exported="false" />
+
         <!-- Protected system broadcasts only; other apps cannot send these. -->
         <receiver
             android:name=".detect.BootReceiver"

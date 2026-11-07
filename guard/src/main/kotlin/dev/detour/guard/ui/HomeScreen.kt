@@ -36,11 +36,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.provider.Settings
+import androidx.compose.runtime.rememberCoroutineScope
 import dev.detour.core.budget.BudgetSettings
+import dev.detour.core.health.HealthIssue
 import dev.detour.guard.data.TodayUsage
 import dev.detour.guard.detect.DetectorService
 import dev.detour.guard.detourApp
+import dev.detour.guard.filter.FilterStatusReader
+import dev.detour.guard.health.HealthState
 import dev.detour.guard.system.Permissions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private data class SetupStatus(
     val usage: Boolean,
@@ -62,11 +71,14 @@ fun HomeScreen(
     onOpenApps: () -> Unit,
     onOpenBudget: () -> Unit,
     onOpenAlternatives: () -> Unit,
+    onOpenBlocklist: () -> Unit,
 ) {
     val context = LocalContext.current
     val app = context.detourApp
     val today by app.usage.today.collectAsStateWithLifecycle()
     val settings by app.settings.settings.collectAsStateWithLifecycle()
+    val health by app.health.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     var refreshTick by remember { mutableIntStateOf(0) }
     val status = remember(refreshTick) { readStatus(context) }
 
@@ -74,7 +86,11 @@ fun HomeScreen(
     LifecycleResumeEffect(Unit) {
         refreshTick++
         DetectorService.startIfPermitted(context)
-        onPauseOrDispose { }
+        val job = scope.launch {
+            delay(800) // give a just-started detector a moment before checking it
+            withContext(Dispatchers.IO) { app.health.check() }
+        }
+        onPauseOrDispose { job.cancel() }
     }
 
     val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -96,6 +112,13 @@ fun HomeScreen(
             Text("Detour needs two permissions before it can work.", style = MaterialTheme.typography.bodyLarge)
         } else {
             TodayCard(today, settings, System.currentTimeMillis())
+        }
+
+        health?.let { h ->
+            // Permission problems have their own cards below; the banner covers the rest.
+            val shown = h.issues.filter { it !in PERMISSION_ISSUES }
+            if (shown.isNotEmpty()) HealthBanner(shown) { issue -> fix(context, issue) }
+            FilterLine(h)
         }
 
         val baseline = remember(settings) { app.settings.baseline() }
@@ -162,6 +185,9 @@ fun HomeScreen(
         OutlinedButton(onClick = onOpenApps, modifier = Modifier.fillMaxWidth().height(52.dp)) {
             Text("App categories")
         }
+        OutlinedButton(onClick = onOpenBlocklist, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Text("Browser blocklist")
+        }
 
         Text(
             if (hasNetworkPermission) "Warning: this build can access the network. It should not."
@@ -170,6 +196,56 @@ fun HomeScreen(
             color = if (hasNetworkPermission) MaterialTheme.colorScheme.error
             else MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+private val PERMISSION_ISSUES = setOf(
+    HealthIssue.USAGE_ACCESS_OFF, HealthIssue.OVERLAY_OFF, HealthIssue.BATTERY_RESTRICTED, HealthIssue.NOTIFICATIONS_OFF,
+)
+
+@Composable
+private fun HealthBanner(issues: List<HealthIssue>, onFix: (HealthIssue) -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Protection is partly off", style = MaterialTheme.typography.titleMedium)
+            issues.forEach { issue ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(issue.message + ".", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    if (issue != HealthIssue.FILTER_NOT_INSTALLED && issue != HealthIssue.FILTER_UNREACHABLE) {
+                        TextButton(onClick = { onFix(issue) }) { Text("Fix") }
+                    }
+                }
+            }
+            if (HealthIssue.FILTER_NOT_INSTALLED in issues || HealthIssue.FILTER_UNREACHABLE in issues) {
+                Text(
+                    "Install Detour Filter from Android Studio (choose “filter” and press Run). Both apps must " +
+                        "be built on the same computer so they share a signing key.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilterLine(h: HealthState) {
+    val f = h.filter ?: return
+    val line = if (f.running) {
+        "Chrome filter is on · ${f.blockedToday} blocked lookup${if (f.blockedToday == 1) "" else "s"} today."
+    } else {
+        "Chrome filter is off."
+    }
+    Text(line, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+private fun fix(context: Context, issue: HealthIssue) {
+    when (issue) {
+        HealthIssue.DETECTOR_STOPPED -> DetectorService.startIfPermitted(context)
+        HealthIssue.FILTER_OFF, HealthIssue.FILTER_UNRESPONSIVE ->
+            FilterStatusReader.launchIntent(context)?.let { context.startSafely(it) }
+        HealthIssue.PRIVATE_DNS_STRICT -> context.startSafely(Intent(Settings.ACTION_WIRELESS_SETTINGS))
+        else -> context.startSafely(Permissions.appInfoIntent(context))
     }
 }
 

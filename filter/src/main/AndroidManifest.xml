@@ -2,11 +2,27 @@
 <!--
   filter: the browser-only DNS filter. It needs INTERNET to forward allowed DNS lookups, which
   is exactly why it is a separate app from guard. It never receives usage data, check-ins, or
-  anything personal: only the domain blocklist. The VPN service arrives in milestone 4.
+  anything personal: only the domain blocklist.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Read the real network's DNS servers and detect Private DNS strict mode. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- See guard (to read its config provider) and the browser it filters. -->
+    <queries>
+        <package android:name="dev.detour.guard" />
+        <package android:name="com.android.chrome" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="false"
@@ -23,6 +39,49 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".FilterVpnService"
+            android:exported="true"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON"
+                android:value="true" />
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Local DNS filter VPN for one browser, chosen by the user (digital wellbeing)." />
+        </service>
+
+        <!-- filter -> guard status. Signature permission: only guard can read it. -->
+        <provider
+            android:name=".StatusProvider"
+            android:authorities="dev.detour.filter.status"
+            android:exported="true"
+            android:readPermission="dev.detour.permission.IPC"
+            android:writePermission="dev.detour.permission.IPC" />
+
+        <!-- guard -> filter "config changed". Only senders with the signature permission. -->
+        <receiver
+            android:name=".ConfigChangedReceiver"
+            android:exported="true"
+            android:permission="dev.detour.permission.IPC">
+            <intent-filter>
+                <action android:name="dev.detour.action.FILTER_CONFIG_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 </manifest>

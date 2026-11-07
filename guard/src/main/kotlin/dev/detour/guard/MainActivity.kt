@@ -19,11 +19,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.detour.guard.ui.AlternativesScreen
 import dev.detour.guard.ui.AppsScreen
 import dev.detour.guard.ui.AppsViewModel
+import dev.detour.guard.ui.BlocklistScreen
 import dev.detour.guard.ui.BudgetScreen
 import dev.detour.guard.ui.HomeScreen
 import dev.detour.guard.ui.theme.DetourTheme
 
-private enum class Screen { HOME, APPS, BUDGET, ALTERNATIVES }
+private enum class Screen { HOME, APPS, BUDGET, ALTERNATIVES, BLOCKLIST }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,7 +43,9 @@ class MainActivity : ComponentActivity() {
                             onOpenApps = { screen = Screen.APPS },
                             onOpenBudget = { screen = Screen.BUDGET },
                             onOpenAlternatives = { screen = Screen.ALTERNATIVES },
+                            onOpenBlocklist = { screen = Screen.BLOCKLIST },
                         )
+                        Screen.BLOCKLIST -> BlocklistScreen(onBack = back)
                         Screen.APPS -> AppsScreen(viewModel<AppsViewModel>(), onBack = back)
                         Screen.BUDGET -> BudgetScreen(onBack = back)
                         Screen.ALTERNATIVES -> AlternativesScreen(onBack = back)

@@ -82,6 +82,34 @@ data class IntentionEntity(
     val atMs: Long,
 )
 
+/** One browser blocklist group (e.g. YouTube). Domains are comma-separated. */
+@Entity(tableName = "blocklist_group")
+data class BlocklistGroupEntity(
+    @PrimaryKey val id: String,
+    val name: String,
+    val domains: String,
+    val blocked: Boolean,
+    val position: Int,
+)
+
+@Dao
+interface BlocklistDao {
+    @Query("SELECT * FROM blocklist_group ORDER BY position, id")
+    fun observeAll(): Flow<List<BlocklistGroupEntity>>
+
+    @Query("SELECT * FROM blocklist_group ORDER BY position, id")
+    suspend fun all(): List<BlocklistGroupEntity>
+
+    @Query("SELECT COUNT(*) FROM blocklist_group")
+    suspend fun count(): Int
+
+    @Upsert
+    suspend fun upsert(group: BlocklistGroupEntity)
+
+    @Query("DELETE FROM blocklist_group WHERE id = :id")
+    suspend fun delete(id: String)
+}
+
 @Dao
 interface ClassificationDao {
     @Query("SELECT * FROM app_classification")
@@ -165,13 +193,15 @@ interface IntentionDao {
         AlternativeEntity::class,
         AlternativeChoiceEntity::class,
         IntentionEntity::class,
+        BlocklistGroupEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
 )
 abstract class DetourDatabase : RoomDatabase() {
     abstract fun classifications(): ClassificationDao
+    abstract fun blocklist(): BlocklistDao
     abstract fun lapses(): LapseDao
     abstract fun usage(): UsageDao
     abstract fun alternatives(): AlternativeDao

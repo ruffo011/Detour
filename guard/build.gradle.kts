@@ -65,6 +65,7 @@ android {
 dependencies {
     implementation(project(":ipc"))
     implementation(project(":core"))
+    implementation(project(":dnscore")) // blocklist model + config format only; no networking
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

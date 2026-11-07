@@ -3,6 +3,8 @@ package dev.detour.guard
 import android.app.Application
 import android.content.Context
 import dev.detour.guard.data.AlternativesRepository
+import dev.detour.guard.data.BlocklistRepository
+import dev.detour.guard.health.HealthMonitor
 import dev.detour.guard.data.ClassificationRepository
 import dev.detour.guard.data.DetourDatabase
 import dev.detour.core.budget.SessionState
@@ -24,11 +26,16 @@ class DetourApp : Application() {
     val usage by lazy { UsageTracker(database.usage(), settings) }
     val alternatives by lazy { AlternativesRepository(database.alternatives(), database.intentions()) }
     val session = SessionState(gapMs = { settings.current.reopenGapMs })
+    val blocklist by lazy { BlocklistRepository(this, database.blocklist(), allowedBrowser = { catalog.allowedBrowser }) }
+    val health by lazy { HealthMonitor(this) }
 
     override fun onCreate() {
         super.onCreate()
         settings.startObservingIfNew(System.currentTimeMillis())
-        appScope.launch { alternatives.seedIfEmpty() }
+        appScope.launch {
+            alternatives.seedIfEmpty()
+            blocklist.seedIfEmpty()
+        }
     }
 }
 

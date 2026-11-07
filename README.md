@@ -12,10 +12,11 @@ Play Store. It is two apps built from this one project:
 
 No Accessibility service, no Device Admin, no analytics, ads or crash reporting.
 
-> **Status:** milestone 3. Blocked apps are blocked. Distracting apps share a daily budget and
-> go through a pause before every open, which offers your own alternatives. The Chrome filter
-> arrives in milestone 4. For now, all settings changes apply immediately in both directions.
-> The 24-hour delay on loosening arrives in milestone 5.
+> **Status:** milestone 4. Blocked apps are blocked. Distracting apps share a daily budget and
+> go through a pause before every open. Detour Filter blocks YouTube, Facebook, Instagram,
+> Reddit and Snapchat in Chrome, and Detour checks that every part of protection stays on.
+> For now, all settings changes apply immediately in both directions. The 24-hour delay on
+> loosening arrives in milestone 5.
 
 ---
 
@@ -171,7 +172,53 @@ open it. Afterwards, set it back to Allowed.
   badges.
 - **Alternatives** are fully editable (*Alternatives* on the home screen). Ride it out is built in.
 
-## 8. Onboarding
+## 8. The Chrome filter and health checks (milestone 4)
+
+**Turning it on (once):**
+1. Open **Detour Filter** → **Turn on the filter** → accept Android's VPN prompt. A key icon
+   appears in the status bar.
+2. Settings → Network & internet → VPN → ⚙ next to Detour Filter → turn on **Always-on VPN**,
+   so Android keeps it running and restarts it.
+3. Chrome → ⋮ → Settings → Privacy and security → **Use secure DNS: Off**.
+4. Settings → Network & internet → **Private DNS: Automatic** (or Off). A specific provider
+   hostname ("strict mode") sends DNS around the filter, and Detour warns you if it's set.
+
+**How it works.** Detour Filter is a VPN that only Chrome goes through, and only for DNS
+(looking up names like `youtube.com`). The VPN's DNS server is a made-up address
+(`192.0.2.53` / `fd00:de70:f17e::53`) in a reserved range, and that address is the only route
+into it. Chrome's page traffic never passes through the app.
+- **Blocked name** (or any subdomain of one): answered locally with "doesn't exist" (NXDOMAIN),
+  so the site doesn't load.
+- **Anything else:** forwarded to your network's normal DNS server over a socket that bypasses
+  the VPN, with Quad9 as the fallback. Truncated answers are retried over TCP.
+- Names are never stored or logged. Filter keeps only a count of blocked lookups for today.
+
+**Blocklist** (Detour → *Browser blocklist*). The defaults, all blocked:
+- YouTube: youtube.com, youtu.be, youtube-nocookie.com, ytimg.com, googlevideo.com, youtubekids.com
+- Facebook: facebook.com, fb.com, fb.watch, fb.me (not messenger.com)
+- Instagram: instagram.com, instagr.am, cdninstagram.com, ig.me
+- Reddit: reddit.com, redd.it, redditmedia.com, redditstatic.com
+- Snapchat: snapchat.com
+
+Shared infrastructure is left alone on purpose: generic Google domains, and `fbcdn.net` /
+`facebook.net` (used by messenger.com and "Log in with Facebook"). Groups you switch off stay
+listed, and their answers get a 30-second lifetime, so switching one back on works within
+about a minute.
+
+**Between the two apps.** guard serves the blocklist to filter, and filter reports back only
+running / heartbeat / Private DNS strict / blocked-count. Both go through providers that
+require the signature-level permission. `adb shell content query` on either is refused with
+"Permission Denial", so only these two apps, signed with your key, can use them.
+
+**Health checks** (every 30 s while the screen is on, and whenever you open Detour): Usage
+access, Display over other apps, battery unrestricted, notifications, Detour's watcher, Detour
+Filter installed / running / responding, and Private DNS not in strict mode. If anything is
+off you get:
+- a notification, "Detour protection is partly off: …", which comes back if you swipe it away
+- a banner in Detour with a **Fix** button
+- a neutral entry in the lapse log, which the weekly review will show later
+
+## 9. Onboarding
 
 *(Milestone 6 adds the full guided flow. The steps it will cover on a Pixel 8:)*
 

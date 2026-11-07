@@ -72,6 +72,7 @@ class DetectorService : Service() {
     private var lastEventTimeMs = 0L
     private var lastHeartbeatMs = 0L
     private var lastKeepAliveCheckMs = 0L
+    private var lastHealthCheckMs = 0L
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -95,6 +96,7 @@ class DetectorService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
         startInForeground()
         keepAlive = OverlayKeepAlive(this)
         keepAlive.attach()
@@ -133,6 +135,7 @@ class DetectorService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
+        isRunning = false
         // A normal stop (not a kill) — not a lapse.
         prefs.edit().putBoolean(KEY_CLEAN_STOP, true).putLong(KEY_HEARTBEAT, System.currentTimeMillis()).apply()
         overlays.hideAll()
@@ -223,6 +226,10 @@ class DetectorService : Service() {
         if (now - lastKeepAliveCheckMs > KEEPALIVE_CHECK_MS) {
             lastKeepAliveCheckMs = now
             keepAlive.attach() // no-op if attached; picks up an overlay permission granted later
+        }
+        if (now - lastHealthCheckMs > HEALTH_CHECK_MS) {
+            lastHealthCheckMs = now
+            withContext(Dispatchers.IO) { app.health.check(detectorRunning = true) }
         }
         heartbeat(now)
     }
@@ -324,6 +331,11 @@ class DetectorService : Service() {
         private const val INITIAL_LOOKBACK_MS = 10 * 60_000L
         private const val QUERY_OVERLAP_MS = 2_000L
         private const val KEEPALIVE_CHECK_MS = 5_000L
+        private const val HEALTH_CHECK_MS = 30_000L
+
+        /** True while the detector is alive in this process (read by the health check). */
+        @Volatile var isRunning = false
+            private set
         private const val KEY_HEARTBEAT = "heartbeat"
         private const val KEY_CLEAN_STOP = "clean_stop"
         private val HOURS: DateTimeFormatter = DateTimeFormatter.ofPattern("H:mm")
