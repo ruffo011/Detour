@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ipc_permission_label">Detour internal communication</string>
+    <string name="ipc_permission_description">Lets the two Detour apps share the browser blocklist and filter status with each other.</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Merged into BOTH guard and filter. The permission is "signature" level, so Android only
+  grants it to apps signed with the same certificate as the app that defines it: i.e. only
+  guard and filter, and only when both were built with the same key (see README "Signing").
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <permission
+        android:name="dev.detour.permission.IPC"
+        android:description="@string/ipc_permission_description"
+        android:label="@string/ipc_permission_label"
+        android:protectionLevel="signature" />
+
+    <uses-permission android:name="dev.detour.permission.IPC" />
+
+</manifest>

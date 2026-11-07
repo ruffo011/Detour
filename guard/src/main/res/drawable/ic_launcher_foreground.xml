@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A path that bends around and continues: a detour. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M36,74 L36,52 Q36,40 48,40 L60,40 Q72,40 72,52 L72,68"
+        android:strokeWidth="7"
+        android:strokeColor="#E6EFEC"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M63,62 L72,72 L81,62"
+        android:strokeWidth="7"
+        android:strokeColor="#E6EFEC"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>
