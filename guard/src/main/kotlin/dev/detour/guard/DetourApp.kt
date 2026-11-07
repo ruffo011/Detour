@@ -23,7 +23,7 @@ class DetourApp : Application() {
     val settings by lazy { SettingsStore(this) }
     val usage by lazy { UsageTracker(database.usage(), settings) }
     val alternatives by lazy { AlternativesRepository(database.alternatives(), database.intentions()) }
-    val session = SessionState()
+    val session = SessionState(gapMs = { settings.current.reopenGapMs })
 
     override fun onCreate() {
         super.onCreate()

@@ -154,7 +154,8 @@ open it. Afterwards, set it back to Allowed.
 - **One shared budget** for all Distracting apps. The day resets at **4:00 AM**, and spending is
   only allowed **9:00–23:00**. Both can be changed in *Budget & hours*.
 - **Every open goes through a pause.** An open means the app came back after more than 30
-  seconds away. The pause shows:
+  seconds away. You can change that time in *Budget & hours → Counts as a new open after*.
+  The pause shows:
   1. A line like "Opened 14 times today · 47 min of 90 used."
   2. *What's going on?* with one-tap feelings.
   3. 3–5 of your alternatives for that feeling, best first, plus **Ride it out** (60 s).

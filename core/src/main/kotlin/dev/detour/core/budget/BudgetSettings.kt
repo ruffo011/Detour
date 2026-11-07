@@ -21,7 +21,14 @@ data class BudgetSettings(
     val observeUntilMs: Long? = null,
     /** True once you've confirmed (or adjusted) the suggested budget after observing. */
     val budgetConfirmed: Boolean = false,
+    /**
+     * How long an app must be away before coming back counts as a new open (and needs the pause
+     * again). Longer is looser: more coming and going without a pause.
+     */
+    val reopenAfterSeconds: Int = DEFAULT_REOPEN_SECONDS,
 ) {
+    val reopenGapMs: Long get() = reopenAfterSeconds * 1_000L
+
     fun isObserving(nowMs: Long): Boolean = observeUntilMs != null && nowMs < observeUntilMs
 
     /** Wait before the next open, given how many opens already happened today. */
@@ -34,5 +41,9 @@ data class BudgetSettings(
         val DEFAULT_WAITS = listOf(5, 15, 30, 60)
         const val OBSERVE_DAYS = 7L
         const val WARNING_MINUTES = 5
+        const val DEFAULT_REOPEN_SECONDS = 30
+
+        /** Choices offered in Budget & hours. */
+        val REOPEN_CHOICES_SECONDS = listOf(5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 300, 600)
     }
 }

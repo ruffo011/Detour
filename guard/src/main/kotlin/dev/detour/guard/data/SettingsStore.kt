@@ -56,6 +56,7 @@ class SettingsStore(context: Context) {
             sessionCheckInMinutes = prefs.getInt(K_CHECKIN, defaults.sessionCheckInMinutes),
             observeUntilMs = prefs.getLong(K_OBSERVE_UNTIL, -1).takeIf { it >= 0 },
             budgetConfirmed = prefs.getBoolean(K_CONFIRMED, false),
+            reopenAfterSeconds = prefs.getInt(K_REOPEN, defaults.reopenAfterSeconds),
         )
     }
 
@@ -78,6 +79,7 @@ class SettingsStore(context: Context) {
                 if (prefs.contains(K_OBSERVE_UNTIL)) putBoolean(K_OBSERVE_DONE, true)
             }
             putBoolean(K_CONFIRMED, s.budgetConfirmed)
+            putInt(K_REOPEN, s.reopenAfterSeconds)
         }.apply()
     }
 
@@ -112,6 +114,7 @@ class SettingsStore(context: Context) {
         private const val K_OBSERVE_UNTIL = "observe_until"
         private const val K_OBSERVE_DONE = "observe_done"
         private const val K_CONFIRMED = "budget_confirmed"
+        private const val K_REOPEN = "reopen_after_seconds"
         private const val K_BASE_MIN = "baseline_minutes"
         private const val K_BASE_OPENS = "baseline_opens"
         private const val K_BASE_SUGGESTED = "baseline_suggested"

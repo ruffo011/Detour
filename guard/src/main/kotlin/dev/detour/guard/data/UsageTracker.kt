@@ -42,7 +42,7 @@ class UsageTracker(private val dao: UsageDao, private val settings: SettingsStor
             open?.let { save(it.apply { endMs = nowMs }) }
             // Load a minute before the day starts too, so a session continuing across 4 AM
             // isn't counted as a new open.
-            val fromMs = clock.startOf(day) - UsageMath.NEW_SESSION_GAP_MS * 2
+            val fromMs = clock.startOf(day) - LOOKBACK_BEFORE_DAY_MS
             closed = dao.since(fromMs).filter { it.id != open?.id }.map { it.toModel() }
             loadedDay = day
         }
@@ -80,9 +80,10 @@ class UsageTracker(private val dao: UsageDao, private val settings: SettingsStor
         val from = clock.startOf(day)
         val o = open
         val all = if (o != null) closed + UsageInterval(o.packageName, o.startMs, maxOf(o.endMs, o.startMs)) else closed
-        val starts = UsageMath.sessionStarts(all).filter { it.startMs in from..nowMs }
+        val allStarts = UsageMath.sessionStarts(all, settings.current.reopenGapMs)
+        val starts = allStarts.filter { it.startMs in from..nowMs }
         val currentStart = o?.let { cur ->
-            UsageMath.sessionStarts(all).filter { it.packageName == cur.packageName && it.startMs <= cur.startMs }
+            allStarts.filter { it.packageName == cur.packageName && it.startMs <= cur.startMs }
                 .maxByOrNull { it.startMs }?.startMs
         }
         val opensBefore = if (currentStart == null) starts.size else starts.count { it.startMs < currentStart }
@@ -98,5 +99,8 @@ class UsageTracker(private val dao: UsageDao, private val settings: SettingsStor
 
     companion object {
         private const val CHECKPOINT_MS = 30_000L
+
+        /** Also load the end of the previous day, so a session continuing across the reset isn't a new open. */
+        private const val LOOKBACK_BEFORE_DAY_MS = 20 * 60_000L
     }
 }

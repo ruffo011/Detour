@@ -25,8 +25,9 @@ object ObserveWeek {
         val endDay = minOf(clock.dayOf(until - 1), clock.dayOf(nowMs).minusDays(1))
         val days = generateSequence(firstDay) { it.plusDays(1) }.takeWhile { it <= endDay }.toList()
             .ifEmpty { listOf(clock.dayOf(nowMs)) }
-        val intervals = app.usage.intervalsSince(clock.startOf(days.first()) - UsageMath.NEW_SESSION_GAP_MS * 2)
-        val baseline = BaselineSuggester.suggest(days.map { UsageMath.totalsFor(it, clock, intervals) })
+        val gapMs = app.settings.current.reopenGapMs
+        val intervals = app.usage.intervalsSince(clock.startOf(days.first()) - 20 * 60_000L)
+        val baseline = BaselineSuggester.suggest(days.map { UsageMath.totalsFor(it, clock, intervals, gapMs) })
         app.settings.finishObserving(baseline)
         return baseline
     }

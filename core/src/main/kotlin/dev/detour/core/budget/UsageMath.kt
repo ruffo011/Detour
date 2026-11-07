@@ -19,8 +19,8 @@ data class DayTotals(val usedMs: Long, val opens: Int) {
  * summed across apps.
  */
 object UsageMath {
-    /** An app resumed after more than this long away counts as a new open. */
-    const val NEW_SESSION_GAP_MS = 30_000L
+    /** Default: an app resumed after more than this long away counts as a new open. */
+    const val NEW_SESSION_GAP_MS = BudgetSettings.DEFAULT_REOPEN_SECONDS * 1_000L
 
     /** Total foreground time within [fromMs, toMs). Overlaps are merged, never double-counted. */
     fun usedMs(intervals: List<UsageInterval>, fromMs: Long, toMs: Long): Long {
@@ -65,9 +65,14 @@ object UsageMath {
     fun opens(intervals: List<UsageInterval>, fromMs: Long, toMs: Long, gapMs: Long = NEW_SESSION_GAP_MS): Int =
         sessionStarts(intervals, gapMs).count { it.startMs in fromMs until toMs }
 
-    fun totalsFor(day: LocalDate, clock: DayClock, intervals: List<UsageInterval>): DayTotals {
+    fun totalsFor(
+        day: LocalDate,
+        clock: DayClock,
+        intervals: List<UsageInterval>,
+        gapMs: Long = NEW_SESSION_GAP_MS,
+    ): DayTotals {
         val from = clock.startOf(day)
         val to = clock.endOf(day)
-        return DayTotals(usedMs(intervals, from, to), opens(intervals, from, to))
+        return DayTotals(usedMs(intervals, from, to), opens(intervals, from, to, gapMs))
     }
 }

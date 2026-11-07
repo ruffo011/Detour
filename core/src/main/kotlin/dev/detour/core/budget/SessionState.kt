@@ -6,11 +6,12 @@ import java.time.LocalDate
  * The Distracting session you've gone through the pause for. Shared between the detector
  * (which checks it) and the intervention screen (which grants it).
  *
- * The session lasts while the app stays in front, or is away for no more than
- * [UsageMath.NEW_SESSION_GAP_MS]. Once it has been away longer, it is over for good: coming back
- * means a new open, which goes through the pause again.
+ * The session lasts while the app stays in front, or is away for no longer than [gapMs] (your
+ * "counts as a reopen after" setting, read fresh each time so a change applies at once). Once it
+ * has been away longer, it is over for good: coming back means a new open, which goes through
+ * the pause again.
  */
-class SessionState(private val gapMs: Long = UsageMath.NEW_SESSION_GAP_MS) {
+class SessionState(private val gapMs: () -> Long = { UsageMath.NEW_SESSION_GAP_MS }) {
     var permittedPackage: String? = null
         private set
     private var lastSeenMs = 0L
@@ -48,6 +49,6 @@ class SessionState(private val gapMs: Long = UsageMath.NEW_SESSION_GAP_MS) {
     }
 
     private fun expireIfStale(nowMs: Long) {
-        if (permittedPackage != null && nowMs - lastSeenMs > gapMs) revoke()
+        if (permittedPackage != null && nowMs - lastSeenMs > gapMs()) revoke()
     }
 }

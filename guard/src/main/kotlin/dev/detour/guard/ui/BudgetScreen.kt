@@ -109,7 +109,11 @@ fun BudgetScreen(onBack: () -> Unit) {
                 }
             }
 
-            Section("Opens per day", "Optional. An open is the app coming back after more than 30 seconds away, including times you went home from the pause.") {
+            Section(
+                "Opens per day",
+                "Optional. An open is the app coming back after more than ${formatSeconds(settings.reopenAfterSeconds)} " +
+                    "away, including times you went home from the pause.",
+            ) {
                 val cap = settings.opensCap
                 SwitchRow("Limit opens", cap != null) { on -> update { it.copy(opensCap = if (on) 10 else null) } }
                 if (cap != null) {
@@ -123,6 +127,26 @@ fun BudgetScreen(onBack: () -> Unit) {
 
             Section("Wait before each open", "Seconds, getting longer with each open today. The last number repeats.") {
                 WaitsField(settings.waitsSeconds) { waits -> update { it.copy(waitsSeconds = waits) } }
+            }
+
+            Section(
+                "Counts as a new open after",
+                "How long an app has to be away before coming back needs the pause again. Shorter trips " +
+                    "(the home screen, notifications, a quick reply) continue the same session.",
+            ) {
+                val choices = BudgetSettings.REOPEN_CHOICES_SECONDS
+                val current = settings.reopenAfterSeconds
+                Stepper(
+                    value = formatSeconds(current),
+                    onMinus = {
+                        val next = choices.lastOrNull { it < current } ?: choices.first()
+                        update { it.copy(reopenAfterSeconds = next) }
+                    },
+                    onPlus = {
+                        val next = choices.firstOrNull { it > current } ?: choices.last()
+                        update { it.copy(reopenAfterSeconds = next) }
+                    },
+                )
             }
 
             Section("Check-in during use", "“Still doing what you came for?” after this long in one session.") {
@@ -188,6 +212,13 @@ private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
         Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = onChange)
     }
+}
+
+/** 30 -> "30 s", 120 -> "2 min", 90 -> "1 min 30 s". */
+private fun formatSeconds(seconds: Int): String = when {
+    seconds < 60 -> "$seconds s"
+    seconds % 60 == 0 -> "${seconds / 60} min"
+    else -> "${seconds / 60} min ${seconds % 60} s"
 }
 
 @Composable

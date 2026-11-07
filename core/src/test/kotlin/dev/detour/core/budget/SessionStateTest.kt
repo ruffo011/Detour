@@ -51,6 +51,27 @@ class SessionStateTest {
     }
 
     @Test
+    fun reopenGapFollowsTheSettingAsItChanges() {
+        var gap = 10 * s
+        val state = SessionState(gapMs = { gap })
+        state.permit("yt", 0, 10)
+        tick(state, "launcher", 1 * s)
+        assertFalse("away 15 s with a 10 s setting", tick(state, "yt", 15 * s))
+
+        state.permit("yt", 100 * s, 10)
+        gap = 120 * s // changed to 2 min mid-session
+        tick(state, "launcher", 101 * s)
+        assertTrue("away 90 s with a 2 min setting", tick(state, "yt", 190 * s))
+    }
+
+    @Test
+    fun opensFollowTheSameSetting() {
+        val ivs = listOf(UsageInterval("yt", 0, 10 * s), UsageInterval("yt", 70 * s, 80 * s)) // 60 s apart
+        assertEquals(2, UsageMath.opens(ivs, 0, Long.MAX_VALUE, gapMs = 30 * s))
+        assertEquals(1, UsageMath.opens(ivs, 0, Long.MAX_VALUE, gapMs = 120 * s))
+    }
+
+    @Test
     fun permissionIsForOneAppOnly() {
         val state = SessionState()
         state.permit("yt", 0, 10)
