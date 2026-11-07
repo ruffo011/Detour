@@ -151,6 +151,12 @@ interface LapseDao {
 
     @Query("SELECT * FROM lapse_event ORDER BY atMs DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<LapseEventEntity>>
+
+    @Query("SELECT * FROM lapse_event WHERE atMs >= :fromMs ORDER BY atMs DESC")
+    fun observeSince(fromMs: Long): Flow<List<LapseEventEntity>>
+
+    @Query("UPDATE lapse_event SET note = :note WHERE id = :id")
+    suspend fun setNote(id: Long, note: String?)
 }
 
 @Dao
@@ -194,6 +200,9 @@ interface AlternativeDao {
     @Query("SELECT * FROM alternative_choice ORDER BY chosenAtMs")
     suspend fun allChoices(): List<AlternativeChoiceEntity>
 
+    @Query("SELECT * FROM alternative_choice WHERE chosenAtMs >= :fromMs ORDER BY chosenAtMs")
+    suspend fun choicesSince(fromMs: Long): List<AlternativeChoiceEntity>
+
     @Insert
     suspend fun insertChoice(choice: AlternativeChoiceEntity): Long
 
@@ -214,6 +223,9 @@ interface AlternativeDao {
 interface IntentionDao {
     @Insert
     suspend fun insert(intention: IntentionEntity)
+
+    @Query("SELECT * FROM intention WHERE atMs >= :fromMs ORDER BY atMs DESC")
+    suspend fun since(fromMs: Long): List<IntentionEntity>
 }
 
 @Database(

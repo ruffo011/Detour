@@ -59,6 +59,12 @@ class AppCatalog(private val context: Context) {
         return CategoryResolver.resolve(facts, choices[packageName], s.device)
     }
 
+    /** Installed web browsers (apps that open any http/https link). */
+    fun browsers(): List<InstalledApp> {
+        val s = current()
+        return s.browsers.map { InstalledApp(it, s.launchable[it] ?: label(it)) }.sortedBy { it.label.lowercase() }
+    }
+
     fun launchableApps(): List<InstalledApp> =
         current().launchable.map { (pkg, label) -> InstalledApp(pkg, label) }.sortedBy { it.label.lowercase() }
 

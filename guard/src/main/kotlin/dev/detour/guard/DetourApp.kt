@@ -15,6 +15,7 @@ import dev.detour.guard.data.UsageTracker
 import dev.detour.guard.guardrail.RecentScreens
 import dev.detour.guard.guardrail.SettingsGuardStore
 import dev.detour.guard.health.HealthMonitor
+import dev.detour.guard.setup.SetupState
 import dev.detour.guard.system.AppCatalog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,10 +43,12 @@ class DetourApp : Application() {
     val settingsGuardPolicy = SettingsGuardPolicy()
     val changes by lazy { ChangeQueue(this, database.pending()) }
     val backup by lazy { BackupManager(this) }
+    val setup by lazy { SetupState(this) }
 
     @OptIn(FlowPreview::class)
     override fun onCreate() {
         super.onCreate()
+        setup.firstRunMs // records the first run (starts the setup window)
         settings.startObservingIfNew(System.currentTimeMillis())
         appScope.launch {
             alternatives.seedIfEmpty()

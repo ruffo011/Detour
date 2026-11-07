@@ -40,7 +40,11 @@ import android.provider.Settings
 import androidx.compose.runtime.rememberCoroutineScope
 import dev.detour.core.budget.BudgetSettings
 import dev.detour.core.health.HealthIssue
+import dev.detour.core.review.WeeklyReview
 import dev.detour.core.settings.SettingsOp
+import dev.detour.guard.setup.SetupProgress
+import dev.detour.guard.setup.SetupStep
+import androidx.compose.runtime.mutableStateOf
 import dev.detour.guard.data.TodayUsage
 import dev.detour.guard.detect.DetectorService
 import dev.detour.guard.detourApp
@@ -76,6 +80,8 @@ fun HomeScreen(
     onOpenPending: () -> Unit,
     onOpenSettingsGuard: () -> Unit,
     onOpenBackup: () -> Unit,
+    onOpenSetup: () -> Unit,
+    onOpenReview: () -> Unit,
 ) {
     val context = LocalContext.current
     val app = context.detourApp
@@ -84,7 +90,10 @@ fun HomeScreen(
     val health by app.health.state.collectAsStateWithLifecycle()
     val pending by app.changes.pending.collectAsStateWithLifecycle(emptyList())
     val backup by app.backup.status.collectAsStateWithLifecycle()
+    val setupCompleted by app.setup.completed.collectAsStateWithLifecycle()
+    val reviewViewed by app.setup.reviewViewedMs.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    var setupSteps by remember { mutableStateOf<List<SetupStep>>(emptyList()) }
     var refreshTick by remember { mutableIntStateOf(0) }
     val status = remember(refreshTick) { readStatus(context) }
 
@@ -94,6 +103,7 @@ fun HomeScreen(
         DetectorService.startIfPermitted(context)
         val job = scope.launch {
             app.changes.applyDue()
+            setupSteps = withContext(Dispatchers.IO) { SetupProgress.steps(context) }
             delay(800) // give a just-started detector a moment before checking it
             withContext(Dispatchers.IO) { app.health.check() }
         }
@@ -128,7 +138,31 @@ fun HomeScreen(
             FilterLine(h)
         }
 
-        if (backup.foundBackupMs != null || backup.folderUri == null) {
+        val stepsLeft = setupSteps.count { !it.done }
+        if (!setupCompleted || stepsLeft > 0) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        if (stepsLeft > 0) "Setup: $stepsLeft step${if (stepsLeft == 1) "" else "s"} left " +
+                            "(${setupSteps.filter { !it.done }.joinToString(", ") { it.title.lowercase() }})."
+                        else "Setup looks complete.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    OutlinedButton(onClick = onOpenSetup) { Text("Continue setup") }
+                }
+            }
+        }
+
+        if (WeeklyReview.isDue(app.setup.firstRunMs, reviewViewed, System.currentTimeMillis())) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Your weekly review is ready: a calm look at the past seven days.", style = MaterialTheme.typography.bodyMedium)
+                    OutlinedButton(onClick = onOpenReview) { Text("Open weekly review") }
+                }
+            }
+        }
+
+        if (backup.foundBackupMs != null || (backup.folderUri == null && setupCompleted)) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
@@ -201,6 +235,9 @@ fun HomeScreen(
         )
 
         Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onOpenReview, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Text("Weekly review")
+        }
         OutlinedButton(onClick = onOpenBudget, modifier = Modifier.fillMaxWidth().height(52.dp)) {
             Text("Budget & hours")
         }
@@ -221,6 +258,9 @@ fun HomeScreen(
         }
         OutlinedButton(onClick = onOpenBackup, modifier = Modifier.fillMaxWidth().height(52.dp)) {
             Text("Backup")
+        }
+        OutlinedButton(onClick = onOpenSetup, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Text("Setup checklist")
         }
 
         Text(

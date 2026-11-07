@@ -12,11 +12,12 @@ Play Store. It is two apps built from this one project:
 
 No Accessibility service, no Device Admin, no analytics, ads or crash reporting.
 
-> **Status:** milestone 5. Blocked apps are blocked. Distracting apps share a daily budget and
-> go through a pause before every open. Detour Filter blocks YouTube, Facebook, Instagram,
-> Reddit and Snapchat in Chrome. Detour checks that every part of protection stays on. Loosening
-> any setting waits 24 hours, Settings pages that could turn Detour off get a 60-second pause,
-> and everything is backed up to a folder you choose.
+> **Status:** all six milestones are built. Blocked apps are blocked. Distracting apps share a
+> daily budget and go through a pause before every open. Detour Filter blocks YouTube, Facebook,
+> Instagram, Reddit and Snapchat in Chrome. Detour checks that every part of protection stays on.
+> Loosening any setting waits 24 hours, Settings pages that could turn Detour off get a 60-second
+> pause, everything is backed up to a folder you choose, and a weekly review and a setup
+> checklist round it out.
 
 ---
 
@@ -262,17 +263,58 @@ through the same 24-hour rule, so anything looser than the fresh install waits 2
 changes keep their original times. Restore only adds or tightens, and never removes things that
 are missing from the backup.
 
-## 12. Onboarding
+## 12. Setup checklist (milestone 6)
 
-*(Milestone 6 adds the full guided flow. The steps it will cover on a Pixel 8:)*
+Until setup is finished, Detour opens straight into **Set up Detour**. You can always reach it
+from the home screen as *Setup checklist*. Each step shows **Done / To do** live. If you finish
+later, the home screen keeps listing what's left, so a half-finished setup is never invisible.
 
-1. Grant **Usage access** and **Display over other apps** to Detour.
-2. Allow notifications. These are only used for "protection is partly off" alerts.
-3. Battery: *Settings → Apps → Detour → App battery usage → **Unrestricted***.
-4. Open Detour Filter, accept the VPN prompt, then *Settings → Network & internet → VPN →
-   ⚙ next to Detour Filter → **Always-on VPN***.
-5. Chrome → *Settings → Privacy and security → **Use secure DNS: Off***.
-6. *Settings → Network & internet → **Private DNS: Off or Automatic*** (strict mode bypasses the filter).
+1. **Permissions:** Usage access, Display over other apps, notifications, battery
+   unrestricted, each with what it can and can't see. If a switch is greyed out, the restricted
+   settings steps are shown.
+2. **Detour Filter:** turn it on, Always-on VPN, Chrome's *Use secure DNS: Off* (you tick these
+   two), and Private DNS not in strict mode (Detour checks this one).
+3. **Apps and browser:** nothing left under "Needs a decision", choose your one allowed browser,
+   check your allowed hours.
+4. **Alternatives:** make the list yours.
+5. **Settings guard:** calibrate at least both App info pages.
+6. **Backup folder.**
+7. **Outside the app** (ticks only): notifications off for Distracting/Blocked apps, YouTube
+   watch history off and deleted, Facebook app uninstalled or disabled, logged out of
+   Facebook/Instagram in Chrome with their site data cleared, and optionally a router schedule.
+
+**Setup window.** For the first hour after Detour first starts, every change applies
+immediately, even loosening ones, and the Settings guard stays quiet. That way the initial setup
+isn't held up by the 24-hour rule. Restoring a backup never uses this window: a restore still
+can't loosen anything.
+
+### Pixel 8 (Android 17) settings paths
+
+| What | Where |
+|---|---|
+| Restricted settings | Settings → Apps → See all apps → Detour → ⋮ → **Allow restricted settings** |
+| Battery | Settings → Apps → See all apps → Detour → App battery usage → **Unrestricted** |
+| Always-on VPN | Settings → Network & internet → VPN → ⚙ Detour Filter → **Always-on VPN** |
+| Private DNS | Settings → Network & internet → Private DNS → **Automatic** (or Off) |
+| App notifications | Settings → Notifications → App notifications |
+| Chrome secure DNS | Chrome → ⋮ → Settings → Privacy and security → **Use secure DNS: Off** |
+
+Samsung and other phones get their own paths in the checklist (best effort, not tested).
+
+## 13. Weekly review (milestone 6)
+
+*Weekly review* on the home screen. Once you've used Detour for a week, a gentle card on the home
+screen says it's ready, once a week. It's never a notification. It shows:
+- **Time in Distracting apps:** a bar per day for the past seven days, with your budget marked,
+  and opens per day.
+- **What you tried instead:** alternatives you picked, per feeling, with how they went.
+- **What you opened apps for:** the intentions you typed, including Settings guard reasons.
+- **When protection was partly off:** lapse events, phrased neutrally, each with an optional
+  *"what was going on?"* note.
+- **Possible next steps:** only when the week's data supports them, and always stricter, so
+  they apply right away if you tap *Apply*. They can be: lowering the daily time if you
+  stayed well under it, an opens limit set at your busiest day, or allowed hours trimmed to the
+  hours you actually used (with an hour of slack). Nothing is suggested during the observe week.
 
 ---
 

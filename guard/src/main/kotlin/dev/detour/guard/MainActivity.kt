@@ -23,11 +23,13 @@ import dev.detour.guard.ui.BackupScreen
 import dev.detour.guard.ui.BlocklistScreen
 import dev.detour.guard.ui.PendingChangesScreen
 import dev.detour.guard.ui.SettingsGuardScreen
+import dev.detour.guard.ui.SetupScreen
+import dev.detour.guard.ui.WeeklyReviewScreen
 import dev.detour.guard.ui.BudgetScreen
 import dev.detour.guard.ui.HomeScreen
 import dev.detour.guard.ui.theme.DetourTheme
 
-private enum class Screen { HOME, APPS, BUDGET, ALTERNATIVES, BLOCKLIST, PENDING, SETTINGS_GUARD, BACKUP }
+private enum class Screen { HOME, APPS, BUDGET, ALTERNATIVES, BLOCKLIST, PENDING, SETTINGS_GUARD, BACKUP, SETUP, REVIEW }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,7 +39,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             DetourTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
+                    // Until setup is finished, open straight into the checklist.
+                    var screen by rememberSaveable { mutableStateOf(if (detourApp.setup.completed.value) Screen.HOME else Screen.SETUP) }
                     val back = { screen = Screen.HOME }
                     if (screen != Screen.HOME) BackHandler(onBack = back)
                     when (screen) {
@@ -50,7 +53,18 @@ class MainActivity : ComponentActivity() {
                             onOpenPending = { screen = Screen.PENDING },
                             onOpenSettingsGuard = { screen = Screen.SETTINGS_GUARD },
                             onOpenBackup = { screen = Screen.BACKUP },
+                            onOpenSetup = { screen = Screen.SETUP },
+                            onOpenReview = { screen = Screen.REVIEW },
                         )
+                        Screen.SETUP -> SetupScreen(
+                            onBack = back,
+                            onOpenApps = { screen = Screen.APPS },
+                            onOpenBudget = { screen = Screen.BUDGET },
+                            onOpenAlternatives = { screen = Screen.ALTERNATIVES },
+                            onOpenSettingsGuard = { screen = Screen.SETTINGS_GUARD },
+                            onOpenBackup = { screen = Screen.BACKUP },
+                        )
+                        Screen.REVIEW -> WeeklyReviewScreen(onBack = back)
                         Screen.BLOCKLIST -> BlocklistScreen(onBack = back)
                         Screen.PENDING -> PendingChangesScreen(onBack = back)
                         Screen.SETTINGS_GUARD -> SettingsGuardScreen(onBack = back)

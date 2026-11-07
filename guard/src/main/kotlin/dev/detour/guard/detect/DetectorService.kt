@@ -245,7 +245,6 @@ class DetectorService : Service() {
         val app = detourApp
         val calibrating = app.recentScreens.calibrating
             ?.takeIf { (screen, since) -> now - since < CALIBRATION_WINDOW_MS && !app.settingsGuard.isCalibrated(screen) }
-        val firstStarted = prefs.getLong(KEY_FIRST_STARTED, now)
         val pause = app.settingsGuardPolicy.shouldPause(
             packageName = packageName,
             className = className,
@@ -253,7 +252,7 @@ class DetectorService : Service() {
             targets = app.settingsGuard.targets.value,
             nowMs = now,
             suppressedKeys = setOfNotNull(calibrating?.first?.name),
-            inSetupGrace = now - firstStarted < SETUP_GRACE_MS,
+            inSetupGrace = app.setup.isSetupWindowOpen(now),
         )
         return if (pause) InterventionInfo(packageName, InterventionMode.SETTINGS_GUARD, waitSeconds = SETTINGS_PAUSE_SECONDS) else null
     }
@@ -314,7 +313,6 @@ class DetectorService : Service() {
             }
         }
         prefs.edit().putBoolean(KEY_CLEAN_STOP, false).putLong(KEY_HEARTBEAT, now).apply()
-        if (!prefs.contains(KEY_FIRST_STARTED)) prefs.edit().putLong(KEY_FIRST_STARTED, now).apply()
         lastHeartbeatMs = now
     }
 
@@ -355,8 +353,6 @@ class DetectorService : Service() {
         private const val QUERY_OVERLAP_MS = 2_000L
         private const val KEEPALIVE_CHECK_MS = 5_000L
         private const val HEALTH_CHECK_MS = 30_000L
-        private const val KEY_FIRST_STARTED = "first_started"
-        private const val SETUP_GRACE_MS = 60 * 60_000L
         private const val CALIBRATION_WINDOW_MS = 3 * 60_000L
         const val SETTINGS_PAUSE_SECONDS = 60
 

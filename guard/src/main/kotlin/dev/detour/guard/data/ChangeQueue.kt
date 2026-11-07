@@ -30,11 +30,17 @@ class ChangeQueue(private val app: DetourApp, private val dao: PendingDao) {
 
     val pending: Flow<List<PendingChange>> = dao.observeAll().map { rows -> rows.mapNotNull { it.toModel() } }
 
-    suspend fun submit(op: SettingsOp, description: String): SubmitResult = withContext(Dispatchers.Default) { submitLocked(op, description) }
+    /**
+     * @param allowSetupWindow false for restores: a backup must never loosen anything immediately,
+     *   even during the first-hour setup window.
+     */
+    suspend fun submit(op: SettingsOp, description: String, allowSetupWindow: Boolean = true): SubmitResult =
+        withContext(Dispatchers.Default) { submitLocked(op, description, allowSetupWindow) }
 
-    private suspend fun submitLocked(op: SettingsOp, description: String): SubmitResult = mutex.withLock {
+    private suspend fun submitLocked(op: SettingsOp, description: String, allowSetupWindow: Boolean): SubmitResult = mutex.withLock {
         val decision = ChangeGate.decide(snapshot(), op)
-        if (decision.immediate) {
+        // During the first hour of setup, everything applies immediately (see SetupState).
+        if (decision.immediate || (allowSetupWindow && app.setup.isSetupWindowOpen())) {
             applyDirect(op)
             SubmitResult.Applied
         } else {

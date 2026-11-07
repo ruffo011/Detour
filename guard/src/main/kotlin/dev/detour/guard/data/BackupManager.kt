@@ -183,7 +183,7 @@ class BackupManager(private val app: DetourApp) {
         var now = 0
         var queued = 0
         for (op in ops) {
-            when (app.changes.submit(op, "Restored from backup: ${describe(op)}")) {
+            when (app.changes.submit(op, "Restored from backup: ${describe(op)}", allowSetupWindow = false)) {
                 SubmitResult.Applied -> now++
                 is SubmitResult.Queued -> queued++
             }
