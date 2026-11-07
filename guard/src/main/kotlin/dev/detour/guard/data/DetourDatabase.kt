@@ -1,14 +1,17 @@
 package dev.detour.guard.data
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.Update
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
@@ -35,6 +38,50 @@ data class LapseEventEntity(
     val note: String? = null,
 )
 
+/** A stretch of time a Distracting app was in the foreground. */
+@Entity(tableName = "usage_interval", indices = [Index("startMs")])
+data class UsageIntervalEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val packageName: String,
+    val startMs: Long,
+    val endMs: Long,
+)
+
+/** One of your alternatives. Sets are stored as comma-separated enum names. */
+@Entity(tableName = "alternative")
+data class AlternativeEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val note: String,
+    val feelings: String,
+    val durations: String,
+    val places: String,
+    val isRideItOut: Boolean,
+    val position: Int,
+)
+
+/** You picked an alternative in an intervention; [outcome] is filled in by the unlock check-in. */
+@Entity(tableName = "alternative_choice", indices = [Index("chosenAtMs")])
+data class AlternativeChoiceEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val alternativeId: Long,
+    val feeling: String,
+    val packageName: String?,
+    val chosenAtMs: Long,
+    val outcome: String? = null,
+    val outcomeAtMs: Long? = null,
+)
+
+/** What you typed in "Why are you opening this?". For the weekly review only. */
+@Entity(tableName = "intention", indices = [Index("atMs")])
+data class IntentionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val packageName: String,
+    val text: String,
+    val feeling: String?,
+    val atMs: Long,
+)
+
 @Dao
 interface ClassificationDao {
     @Query("SELECT * FROM app_classification")
@@ -53,14 +100,82 @@ interface LapseDao {
     fun observeRecent(limit: Int): Flow<List<LapseEventEntity>>
 }
 
+@Dao
+interface UsageDao {
+    @Insert
+    suspend fun insert(interval: UsageIntervalEntity): Long
+
+    @Update
+    suspend fun update(interval: UsageIntervalEntity)
+
+    @Query("SELECT * FROM usage_interval WHERE endMs >= :fromMs ORDER BY startMs")
+    suspend fun since(fromMs: Long): List<UsageIntervalEntity>
+}
+
+@Dao
+interface AlternativeDao {
+    @Query("SELECT * FROM alternative ORDER BY position, id")
+    fun observeAll(): Flow<List<AlternativeEntity>>
+
+    @Query("SELECT * FROM alternative ORDER BY position, id")
+    suspend fun all(): List<AlternativeEntity>
+
+    @Query("SELECT * FROM alternative WHERE id = :id")
+    suspend fun byId(id: Long): AlternativeEntity?
+
+    @Query("SELECT COUNT(*) FROM alternative")
+    suspend fun count(): Int
+
+    @Insert
+    suspend fun insert(entity: AlternativeEntity): Long
+
+    @Update
+    suspend fun update(entity: AlternativeEntity)
+
+    @Query("DELETE FROM alternative WHERE id = :id AND isRideItOut = 0")
+    suspend fun delete(id: Long)
+
+    @Insert
+    suspend fun insertChoice(choice: AlternativeChoiceEntity): Long
+
+    @Query("SELECT * FROM alternative_choice ORDER BY chosenAtMs DESC LIMIT :limit")
+    suspend fun recentChoices(limit: Int): List<AlternativeChoiceEntity>
+
+    @Query("SELECT * FROM alternative_choice WHERE outcome IS NOT NULL ORDER BY chosenAtMs DESC LIMIT :limit")
+    fun observeOutcomes(limit: Int): Flow<List<AlternativeChoiceEntity>>
+
+    @Query("SELECT * FROM alternative_choice WHERE id = :id")
+    suspend fun choiceById(id: Long): AlternativeChoiceEntity?
+
+    @Query("UPDATE alternative_choice SET outcome = :outcome, outcomeAtMs = :atMs WHERE id = :id")
+    suspend fun setOutcome(id: Long, outcome: String, atMs: Long)
+}
+
+@Dao
+interface IntentionDao {
+    @Insert
+    suspend fun insert(intention: IntentionEntity)
+}
+
 @Database(
-    entities = [AppClassificationEntity::class, LapseEventEntity::class],
-    version = 1,
+    entities = [
+        AppClassificationEntity::class,
+        LapseEventEntity::class,
+        UsageIntervalEntity::class,
+        AlternativeEntity::class,
+        AlternativeChoiceEntity::class,
+        IntentionEntity::class,
+    ],
+    version = 2,
     exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
 abstract class DetourDatabase : RoomDatabase() {
     abstract fun classifications(): ClassificationDao
     abstract fun lapses(): LapseDao
+    abstract fun usage(): UsageDao
+    abstract fun alternatives(): AlternativeDao
+    abstract fun intentions(): IntentionDao
 
     companion object {
         fun create(context: Context): DetourDatabase =

@@ -76,7 +76,17 @@
             android:exported="false"
             android:launchMode="singleTask"
             android:taskAffinity="dev.detour.guard.intervention"
-            android:theme="@style/Theme.Detour" />
+            android:theme="@style/Theme.Detour"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- One-tap "how was it?" after an alternative, shown on unlock. -->
+        <activity
+            android:name=".intervene.CheckInActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="dev.detour.guard.checkin"
+            android:theme="@style/Theme.Detour.Translucent" />
 
         <service
             android:name=".detect.DetectorService"

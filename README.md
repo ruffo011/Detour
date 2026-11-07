@@ -12,11 +12,10 @@ Play Store. It is two apps built from this one project:
 
 No Accessibility service, no Device Admin, no analytics, ads or crash reporting.
 
-> **Status:** milestone 2. Detour sorts apps into categories, watches which app is open, and
-> blocks Blocked apps (including every browser except Chrome) with a full-screen pause.
-> The Distracting budget arrives in milestone 3, and the Chrome filter in milestone 4.
-> For now, category changes apply immediately in both directions. The 24-hour delay on
-> loosening arrives in milestone 5.
+> **Status:** milestone 3. Blocked apps are blocked. Distracting apps share a daily budget and
+> go through a pause before every open, which offers your own alternatives. The Chrome filter
+> arrives in milestone 4. For now, all settings changes apply immediately in both directions.
+> The 24-hour delay on loosening arrives in milestone 5.
 
 ---
 
@@ -144,7 +143,34 @@ Installing through Android Studio / `adb` (section 3) often avoids this block en
 **To try it:** in App categories, set any app you don't need (e.g. Calculator) to **Blocked** and
 open it. Afterwards, set it back to Allowed.
 
-## 7. Onboarding
+## 7. Distracting apps and the shared budget (milestone 3)
+
+- **Observe week first.** For the first 7 days Detour only measures how long and how often you
+  use Distracting apps, and doesn't limit them. Then it sets a starting budget a little below
+  your average (85%, rounded down to 5 minutes) and asks you to keep or adjust it. Blocked apps
+  are blocked from day one. *Budget & hours → Stop observing* ends the week early.
+- **Classify your apps early.** Any app you haven't classified counts as Distracting, both in
+  the observe-week numbers and, afterwards, for the pause.
+- **One shared budget** for all Distracting apps. The day resets at **4:00 AM**, and spending is
+  only allowed **9:00–23:00**. Both can be changed in *Budget & hours*.
+- **Every open goes through a pause.** An open means the app came back after more than 30
+  seconds away. The pause shows:
+  1. A line like "Opened 14 times today · 47 min of 90 used."
+  2. *What's going on?* with one-tap feelings.
+  3. 3–5 of your alternatives for that feeling, best first, plus **Ride it out** (60 s).
+  4. A wait you can't skip, which grows with each open today (5 → 15 → 30 → 60 s), and
+     *Why are you opening it?* (at least 10 characters). Then **Continue to [app]** appears.
+- **During use:** "Still doing what you came for?" after 10 minutes, a note when 5 minutes are
+  left, and the pause screen takes over the moment the time is used up.
+- **Out of time / outside hours / opens limit reached:** only your alternatives or the home screen.
+- **Learning what works:** the next time you unlock the phone, at least 10 minutes after picking
+  an alternative, Detour asks once "How was it?" (better / same / worse / didn't do it, or Skip).
+  It ranks alternatives by recent results per feeling and shows plain evidence such as
+  "When anxious, “Take a walk” helped 9 of the last 11 times." There are no streaks, points or
+  badges.
+- **Alternatives** are fully editable (*Alternatives* on the home screen). Ride it out is built in.
+
+## 8. Onboarding
 
 *(Milestone 6 adds the full guided flow. The steps it will cover on a Pixel 8:)*
 

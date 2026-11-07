@@ -35,7 +35,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.detour.core.budget.BudgetSettings
+import dev.detour.guard.data.TodayUsage
 import dev.detour.guard.detect.DetectorService
+import dev.detour.guard.detourApp
 import dev.detour.guard.system.Permissions
 
 private data class SetupStatus(
@@ -53,8 +57,16 @@ private fun readStatus(context: Context) = SetupStatus(
 )
 
 @Composable
-fun HomeScreen(hasNetworkPermission: Boolean, onOpenApps: () -> Unit) {
+fun HomeScreen(
+    hasNetworkPermission: Boolean,
+    onOpenApps: () -> Unit,
+    onOpenBudget: () -> Unit,
+    onOpenAlternatives: () -> Unit,
+) {
     val context = LocalContext.current
+    val app = context.detourApp
+    val today by app.usage.today.collectAsStateWithLifecycle()
+    val settings by app.settings.settings.collectAsStateWithLifecycle()
     var refreshTick by remember { mutableIntStateOf(0) }
     val status = remember(refreshTick) { readStatus(context) }
 
@@ -80,11 +92,31 @@ fun HomeScreen(hasNetworkPermission: Boolean, onOpenApps: () -> Unit) {
         Text("Detour", style = MaterialTheme.typography.headlineMedium)
 
         val watching = status.usage && status.overlay
-        Text(
-            if (watching) "Detour is on. Blocked apps will be interrupted."
-            else "Detour needs two permissions before it can work.",
-            style = MaterialTheme.typography.bodyLarge,
-        )
+        if (!watching) {
+            Text("Detour needs two permissions before it can work.", style = MaterialTheme.typography.bodyLarge)
+        } else {
+            TodayCard(today, settings, System.currentTimeMillis())
+        }
+
+        val baseline = remember(settings) { app.settings.baseline() }
+        if (baseline != null && !settings.budgetConfirmed && settings.dailyBudgetMinutes != null) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "During the observe week you used Distracting apps for about ${baseline.averageMinutes} min " +
+                            "a day and opened them about ${baseline.averageOpens} times. Your daily time now " +
+                            "starts at ${settings.dailyBudgetMinutes} min.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { app.settings.update { it.copy(budgetConfirmed = true) } }) {
+                            Text("Keep ${settings.dailyBudgetMinutes} min")
+                        }
+                        OutlinedButton(onClick = onOpenBudget) { Text("Adjust") }
+                    }
+                }
+            }
+        }
 
         SetupRow(
             title = "Usage access",
@@ -121,8 +153,14 @@ fun HomeScreen(hasNetworkPermission: Boolean, onOpenApps: () -> Unit) {
         )
 
         Spacer(Modifier.height(8.dp))
-        Button(onClick = onOpenApps, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-            Text("Choose app categories")
+        OutlinedButton(onClick = onOpenBudget, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Text("Budget & hours")
+        }
+        OutlinedButton(onClick = onOpenAlternatives, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Text("Alternatives")
+        }
+        OutlinedButton(onClick = onOpenApps, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+            Text("App categories")
         }
 
         Text(
@@ -133,6 +171,25 @@ fun HomeScreen(hasNetworkPermission: Boolean, onOpenApps: () -> Unit) {
             else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+@Composable
+private fun TodayCard(today: TodayUsage?, settings: BudgetSettings, nowMs: Long) {
+    val minutes = today?.usedMinutes ?: 0
+    val opens = today?.opens ?: 0
+    val opensText = if (opens == 1) "1 open" else "$opens opens"
+    val line = when {
+        settings.isObserving(nowMs) -> {
+            val until = settings.observeUntilMs!!
+            val daysLeft = ((until - nowMs + 86_399_999) / 86_400_000).coerceAtLeast(1)
+            "Observing a normal week ($daysLeft day${if (daysLeft == 1L) "" else "s"} left). " +
+                "Today: $minutes min in Distracting apps · $opensText."
+        }
+        settings.dailyBudgetMinutes != null -> "Today: $minutes of ${settings.dailyBudgetMinutes} min used · $opensText."
+        else -> "Today: $minutes min in Distracting apps · $opensText."
+    }
+    Text("Detour is on.", style = MaterialTheme.typography.bodyLarge)
+    Text(line, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @Composable

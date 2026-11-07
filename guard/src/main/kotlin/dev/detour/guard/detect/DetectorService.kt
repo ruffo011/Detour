@@ -21,11 +21,19 @@ import dev.detour.core.AppCategory
 import dev.detour.core.ForegroundTracker
 import dev.detour.core.InterventionPolicy
 import dev.detour.core.UsageEvent
+import dev.detour.core.alternatives.CheckInPicker
+import dev.detour.core.budget.DistractingGate
+import dev.detour.core.budget.GateDecision
+import dev.detour.core.budget.GateInput
 import dev.detour.guard.MainActivity
 import dev.detour.guard.R
 import dev.detour.guard.data.LapseEventEntity
+import dev.detour.guard.data.ObserveWeek
 import dev.detour.guard.detourApp
+import dev.detour.guard.intervene.CheckInActivity
 import dev.detour.guard.intervene.InterventionActivity
+import dev.detour.guard.intervene.InterventionInfo
+import dev.detour.guard.intervene.InterventionMode
 import dev.detour.guard.system.Permissions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,14 +44,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.time.format.DateTimeFormatter
 
 /**
  * Watches which app is in the foreground, using Usage Access (UsageStatsManager events).
  *
  * - Polls every [POLL_MS] while the screen is on; sleeps while it is off.
- * - When an app that needs intervention comes to the front, launches [InterventionActivity].
+ * - Blocked app in front -> intervention.
+ * - Distracting app in front -> records time and asks [DistractingGate]: pause, block, or allow
+ *   (with the session check-in and 5-minutes-left overlays).
+ * - On unlock, offers the "how was it?" check-in for an alternative you chose earlier.
  * - Writes a heartbeat so a later start can tell the system killed it, and logs that neutrally.
  */
 class DetectorService : Service() {
@@ -52,6 +65,7 @@ class DetectorService : Service() {
     private val policy = InterventionPolicy()
     private val screenOn = MutableStateFlow(true)
     private lateinit var keepAlive: OverlayKeepAlive
+    private lateinit var overlays: SessionOverlays
     private val prefs by lazy { getSharedPreferences("detector", MODE_PRIVATE) }
 
     /** Events at or before this time have been processed. */
@@ -61,7 +75,15 @@ class DetectorService : Service() {
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            screenOn.value = intent.action != Intent.ACTION_SCREEN_OFF
+            when (intent.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    screenOn.value = false
+                    overlays.hideAll()
+                    scope.launch { detourApp.usage.closeOpen(System.currentTimeMillis()) }
+                }
+                Intent.ACTION_SCREEN_ON -> screenOn.value = true
+                Intent.ACTION_USER_PRESENT -> scope.launch { offerCheckIn() }
+            }
         }
     }
 
@@ -76,6 +98,7 @@ class DetectorService : Service() {
         startInForeground()
         keepAlive = OverlayKeepAlive(this)
         keepAlive.attach()
+        overlays = SessionOverlays(this, detourApp.session, goHome = ::goHome)
 
         screenOn.value = getSystemService(PowerManager::class.java).isInteractive
         // System broadcasts still reach NOT_EXPORTED receivers; other apps can't send to them.
@@ -85,6 +108,7 @@ class DetectorService : Service() {
             IntentFilter().apply {
                 addAction(Intent.ACTION_SCREEN_ON)
                 addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_USER_PRESENT)
             },
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
@@ -111,9 +135,11 @@ class DetectorService : Service() {
     override fun onDestroy() {
         // A normal stop (not a kill) — not a lapse.
         prefs.edit().putBoolean(KEY_CLEAN_STOP, true).putLong(KEY_HEARTBEAT, System.currentTimeMillis()).apply()
+        overlays.hideAll()
         keepAlive.detach()
         unregisterReceiver(screenReceiver)
         unregisterReceiver(packageReceiver)
+        runCatching { runBlocking { detourApp.usage.closeOpen(System.currentTimeMillis()) } }
         scope.cancel()
         super.onDestroy()
     }
@@ -133,15 +159,65 @@ class DetectorService : Service() {
     }
 
     private suspend fun tick() {
+        val app = detourApp
         val now = System.currentTimeMillis()
         val events = withContext(Dispatchers.Default) { readEventsSince(lastEventTimeMs, now) }
         events.lastOrNull()?.let { lastEventTimeMs = it.timeMs }
         tracker.onEvents(events)
 
         val fg = tracker.current
-        val needsIntervention = fg != null && needsIntervention(fg.packageName)
-        if (policy.shouldIntervene(fg?.packageName, needsIntervention, now)) {
-            InterventionActivity.launch(this, fg!!.packageName)
+        val choices = app.classifications.choices.value ?: return
+        val category = fg?.let { app.catalog.resolve(it.packageName, choices).category }
+        val distractingPkg = fg?.packageName?.takeIf { category == AppCategory.DISTRACTING }
+
+        val today = app.usage.update(distractingPkg, now)
+        app.session.touch(fg?.packageName, now)
+        maybeFinishObserving(now)
+
+        val settings = app.settings.current
+        var info: InterventionInfo? = null
+        var allowedSession = false
+        if (fg != null && category == AppCategory.BLOCKED) {
+            info = InterventionInfo(fg.packageName, InterventionMode.BLOCKED)
+        } else if (distractingPkg != null) {
+            val decision = DistractingGate.decide(
+                settings,
+                GateInput(
+                    nowMs = now,
+                    localTime = app.settings.clock().localTimeAt(now),
+                    usedMs = today.usedMs,
+                    opensBefore = today.opensBefore,
+                    sessionPermitted = app.session.isPermitted(distractingPkg, now),
+                ),
+            )
+            val mode = when (decision) {
+                GateDecision.ALLOW -> null
+                GateDecision.PAUSE -> InterventionMode.PAUSE
+                GateDecision.OUT_OF_BUDGET -> InterventionMode.OUT_OF_BUDGET
+                GateDecision.OUTSIDE_HOURS -> InterventionMode.OUTSIDE_HOURS
+                GateDecision.OPENS_CAP -> InterventionMode.OPENS_CAP
+            }
+            if (mode != null) {
+                if (mode != InterventionMode.PAUSE) app.session.revoke()
+                info = InterventionInfo(
+                    packageName = distractingPkg,
+                    mode = mode,
+                    opensToday = today.opens,
+                    usedMinutes = today.usedMinutes,
+                    budgetMinutes = settings.dailyBudgetMinutes,
+                    waitSeconds = settings.waitFor(today.opensBefore),
+                    allowedHoursText = settings.allowedHours?.let { "${it.start.format(HOURS)}–${it.end.format(HOURS)}" },
+                )
+            } else {
+                allowedSession = !settings.isObserving(now)
+            }
+        }
+
+        if (allowedSession) overlays.onAllowedTick(settings, today, now) else overlays.onOtherTick(now)
+
+        if (policy.shouldIntervene(fg?.packageName, info != null, now)) {
+            overlays.hideAll()
+            InterventionActivity.launch(this, info!!)
         }
 
         if (now - lastKeepAliveCheckMs > KEEPALIVE_CHECK_MS) {
@@ -151,10 +227,18 @@ class DetectorService : Service() {
         heartbeat(now)
     }
 
-    private fun needsIntervention(packageName: String): Boolean {
-        val choices = detourApp.classifications.choices.value ?: return false
-        // Milestone 2: only Blocked apps are interrupted. Milestone 3 adds the Distracting budget.
-        return detourApp.catalog.resolve(packageName, choices).category == AppCategory.BLOCKED
+    private suspend fun maybeFinishObserving(now: Long) = ObserveWeek.finishIfDue(detourApp, now)
+
+    /** On unlock: if you chose an alternative 10+ minutes ago, ask how it went. */
+    private suspend fun offerCheckIn() {
+        val pick = CheckInPicker.pick(detourApp.alternatives.recentChoices(), System.currentTimeMillis()) ?: return
+        CheckInActivity.launch(this, pick.id)
+    }
+
+    private fun goHome() {
+        startActivity(
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 
     /** Reads resumed/paused events newer than [afterMs]. Queries a little earlier to catch late writes. */
@@ -242,6 +326,7 @@ class DetectorService : Service() {
         private const val KEEPALIVE_CHECK_MS = 5_000L
         private const val KEY_HEARTBEAT = "heartbeat"
         private const val KEY_CLEAN_STOP = "clean_stop"
+        private val HOURS: DateTimeFormatter = DateTimeFormatter.ofPattern("H:mm")
 
         /** Starts the detector if the permissions it needs are granted. Safe to call repeatedly. */
         fun startIfPermitted(context: Context) {

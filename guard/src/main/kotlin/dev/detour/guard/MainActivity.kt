@@ -16,10 +16,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.detour.guard.ui.AlternativesScreen
 import dev.detour.guard.ui.AppsScreen
 import dev.detour.guard.ui.AppsViewModel
+import dev.detour.guard.ui.BudgetScreen
 import dev.detour.guard.ui.HomeScreen
 import dev.detour.guard.ui.theme.DetourTheme
+
+private enum class Screen { HOME, APPS, BUDGET, ALTERNATIVES }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,12 +33,19 @@ class MainActivity : ComponentActivity() {
         setContent {
             DetourTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    var showApps by rememberSaveable { mutableStateOf(false) }
-                    if (showApps) {
-                        BackHandler { showApps = false }
-                        AppsScreen(viewModel<AppsViewModel>(), onBack = { showApps = false })
-                    } else {
-                        HomeScreen(hasNetworkPermission = hasNetwork, onOpenApps = { showApps = true })
+                    var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
+                    val back = { screen = Screen.HOME }
+                    if (screen != Screen.HOME) BackHandler(onBack = back)
+                    when (screen) {
+                        Screen.HOME -> HomeScreen(
+                            hasNetworkPermission = hasNetwork,
+                            onOpenApps = { screen = Screen.APPS },
+                            onOpenBudget = { screen = Screen.BUDGET },
+                            onOpenAlternatives = { screen = Screen.ALTERNATIVES },
+                        )
+                        Screen.APPS -> AppsScreen(viewModel<AppsViewModel>(), onBack = back)
+                        Screen.BUDGET -> BudgetScreen(onBack = back)
+                        Screen.ALTERNATIVES -> AlternativesScreen(onBack = back)
                     }
                 }
             }
