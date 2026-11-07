@@ -4,19 +4,21 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.detour.guard.ui.AppsScreen
+import dev.detour.guard.ui.AppsViewModel
+import dev.detour.guard.ui.HomeScreen
 import dev.detour.guard.ui.theme.DetourTheme
 
 class MainActivity : ComponentActivity() {
@@ -27,7 +29,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             DetourTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    PlaceholderScreen(hasNetwork)
+                    var showApps by rememberSaveable { mutableStateOf(false) }
+                    if (showApps) {
+                        BackHandler { showApps = false }
+                        AppsScreen(viewModel<AppsViewModel>(), onBack = { showApps = false })
+                    } else {
+                        HomeScreen(hasNetworkPermission = hasNetwork, onOpenApps = { showApps = true })
+                    }
                 }
             }
         }
@@ -44,8 +52,7 @@ class MainActivity : ComponentActivity() {
             @Suppress("DEPRECATION")
             packageManager.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS)
         }
-        val requested = info.requestedPermissions.orEmpty()
-        return requested.any { it in NETWORK_PERMISSIONS }
+        return info.requestedPermissions.orEmpty().any { it in NETWORK_PERMISSIONS }
     }
 
     companion object {
@@ -53,29 +60,6 @@ class MainActivity : ComponentActivity() {
             "android.permission.INTERNET",
             "android.permission.ACCESS_NETWORK_STATE",
             "android.permission.CHANGE_NETWORK_STATE",
-        )
-    }
-}
-
-@Composable
-private fun PlaceholderScreen(hasNetwork: Boolean) {
-    Column(
-        modifier = Modifier
-            .safeDrawingPadding()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text("Detour", style = MaterialTheme.typography.headlineMedium)
-        Text(
-            "Detour is installed. Setup will be added in the next update.",
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        Text(
-            if (hasNetwork) "Warning: this build can access the network. It should not."
-            else "This app has no internet access, so nothing you enter here can leave the phone.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (hasNetwork) MaterialTheme.colorScheme.error
-            else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

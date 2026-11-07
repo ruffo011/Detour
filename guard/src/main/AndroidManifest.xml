@@ -50,6 +50,7 @@
     </queries>
 
     <application
+        android:name=".DetourApp"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
@@ -67,6 +68,34 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Own task so it never mixes with Detour's main screen or the blocked app's task. -->
+        <activity
+            android:name=".intervene.InterventionActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:taskAffinity="dev.detour.guard.intervention"
+            android:theme="@style/Theme.Detour" />
+
+        <service
+            android:name=".detect.DetectorService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Digital wellbeing: detects when an app the user chose to limit is opened, so a pause screen can be shown." />
+        </service>
+
+        <!-- Protected system broadcasts only; other apps cannot send these. -->
+        <receiver
+            android:name=".detect.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 </manifest>

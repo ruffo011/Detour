@@ -12,8 +12,11 @@ Play Store. It is two apps built from this one project:
 
 No Accessibility service, no Device Admin, no analytics, ads or crash reporting.
 
-> **Status:** milestone 1 (project skeleton). Both apps install and open a placeholder screen.
-> The real features arrive in milestones 2–6.
+> **Status:** milestone 2. Detour sorts apps into categories, watches which app is open, and
+> blocks Blocked apps (including every browser except Chrome) with a full-screen pause.
+> The Distracting budget arrives in milestone 3, and the Chrome filter in milestone 4.
+> For now, category changes apply immediately in both directions. The 24-hour delay on
+> loosening arrives in milestone 5.
 
 ---
 
@@ -116,7 +119,32 @@ and **Display over other apps** for Detour with a "Restricted setting" message. 
 
 Installing through Android Studio / `adb` (section 3) often avoids this block entirely.
 
-## 6. Onboarding
+## 6. How blocking works (milestone 2)
+
+- **Categories.** Open Detour → **Choose app categories**. Each app is *Allowed*, *Distracting*
+  or *Blocked*. Some apps are set by Detour and can't be changed: the phone app, emergency,
+  launcher, keyboard, system UI, Settings, Detour itself, Chrome (your one allowed browser), and
+  every other browser (always Blocked, so all browsing goes through the filter). New apps start
+  as Distracting and show up under "Needs a decision".
+- **Watching.** Once Usage access and Display over other apps are on, a silent "Detour is on"
+  notification appears. That's Android's required sign that a background service is running. You
+  can minimize it by long-pressing it. The service checks the foreground app about every 0.75 s
+  while the screen is on, and sleeps while it's off.
+- **Interrupting.** Opening a Blocked app shows a full-screen pause instead. Its only way out is
+  the home screen: back, the button, Home and Recents never return you to the app, and reopening
+  the app just shows the pause again.
+- **Why an activity plus a 1-pixel overlay:** the pause is a normal full-screen activity
+  (proper focus, keyboard, back gesture). Since Android 15, an app may only open an activity from
+  the background if it holds "Display over other apps" *and* has a visible overlay window, so
+  Detour keeps an invisible 1×1-pixel, untouchable overlay on screen while it runs.
+- **If Android stops it.** The service restarts after reboots and updates. If the system kills
+  it, the next start logs a neutral note ("Detour's watcher wasn't running for about N min"),
+  which appears in the weekly review later.
+
+**To try it:** in App categories, set any app you don't need (e.g. Calculator) to **Blocked** and
+open it. Afterwards, set it back to Allowed.
+
+## 7. Onboarding
 
 *(Milestone 6 adds the full guided flow. The steps it will cover on a Pixel 8:)*
 
