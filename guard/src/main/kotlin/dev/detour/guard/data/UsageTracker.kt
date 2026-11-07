@@ -100,38 +100,3 @@ class UsageTracker(private val dao: UsageDao, private val settings: SettingsStor
         private const val CHECKPOINT_MS = 30_000L
     }
 }
-
-/**
- * The Distracting session you've gone through the pause for. Shared between the detector
- * (which checks it) and the intervention screen (which grants it). Main thread only.
- */
-class SessionState {
-    var permittedPackage: String? = null
-        private set
-    private var lastSeenMs = 0L
-
-    /** When to ask "Still doing what you came for?". */
-    var checkInDueMs = Long.MAX_VALUE
-
-    /** The day the 5-minutes-left warning was last shown. */
-    var warnedDay: LocalDate? = null
-
-    fun permit(packageName: String, nowMs: Long, checkInMinutes: Int) {
-        permittedPackage = packageName
-        lastSeenMs = nowMs
-        checkInDueMs = nowMs + checkInMinutes * 60_000L
-    }
-
-    /** The session lasts while the app is in front, or away for no more than 30 s. */
-    fun isPermitted(packageName: String, nowMs: Long): Boolean =
-        packageName == permittedPackage && nowMs - lastSeenMs <= UsageMath.NEW_SESSION_GAP_MS
-
-    fun touch(foregroundPackage: String?, nowMs: Long) {
-        if (foregroundPackage != null && foregroundPackage == permittedPackage) lastSeenMs = nowMs
-    }
-
-    fun revoke() {
-        permittedPackage = null
-        checkInDueMs = Long.MAX_VALUE
-    }
-}

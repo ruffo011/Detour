@@ -5,7 +5,7 @@ import android.content.Context
 import dev.detour.guard.data.AlternativesRepository
 import dev.detour.guard.data.ClassificationRepository
 import dev.detour.guard.data.DetourDatabase
-import dev.detour.guard.data.SessionState
+import dev.detour.core.budget.SessionState
 import dev.detour.guard.data.SettingsStore
 import dev.detour.guard.data.UsageTracker
 import dev.detour.guard.system.AppCatalog

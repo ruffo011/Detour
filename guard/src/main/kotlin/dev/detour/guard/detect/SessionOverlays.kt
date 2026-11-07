@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.detour.core.budget.BudgetSettings
 import dev.detour.core.budget.DistractingGate
-import dev.detour.guard.data.SessionState
+import dev.detour.core.budget.SessionState
 import dev.detour.guard.data.TodayUsage
 import dev.detour.guard.ui.theme.DetourTheme
 
