@@ -124,6 +124,15 @@ class FilterVpnService : VpnService() {
         if (heartbeat == null) {
             heartbeat = Executors.newSingleThreadScheduledExecutor().also {
                 it.scheduleWithFixedDelay({ FilterStatus.lastHeartbeatMs = System.currentTimeMillis() }, 30, 30, TimeUnit.SECONDS)
+                var lastSummary = ""
+                it.scheduleWithFixedDelay({
+                    // Counts only (never names), once a minute when something changed. For debugging.
+                    val ups = upstream.servers
+                    val summary = "${FilterStatus.Counters.summary()} upstream=${ups.size}" +
+                        " (v4=${ups.count { a -> a is java.net.Inet4Address }}, v6=${ups.count { a -> a is java.net.Inet6Address }})"
+                    if (summary != lastSummary) Log.i(TAG, summary)
+                    lastSummary = summary
+                }, 10, 60, TimeUnit.SECONDS)
             }
         }
     }
@@ -137,6 +146,7 @@ class FilterVpnService : VpnService() {
                 break // tunnel closed
             }
             if (n <= 0) continue
+            FilterStatus.Counters.packets.incrementAndGet()
             val udp = UdpPacket.parse(buf, n) ?: continue
             if (udp.dstPort != 53) continue
             handle(udp)
@@ -155,15 +165,23 @@ class FilterVpnService : VpnService() {
             return
         }
         val p = policy ?: return
+        FilterStatus.Counters.queries.incrementAndGet()
         when (val verdict = p.verdict(query)) {
             DnsVerdict.BLOCK -> {
+                FilterStatus.Counters.blocked.incrementAndGet()
                 write(udp.reply(DnsResponses.nxdomain(query)))
                 FilterStatus.recordBlocked(this)
             }
             DnsVerdict.FORWARD, DnsVerdict.FORWARD_SHORT_TTL -> {
                 try {
+                    FilterStatus.Counters.forwarded.incrementAndGet()
                     workers.execute {
-                        val answer = forwarder.resolve(query) ?: return@execute
+                        val answer = forwarder.resolve(query)
+                        if (answer == null) {
+                            FilterStatus.Counters.unanswered.incrementAndGet()
+                            return@execute
+                        }
+                        FilterStatus.Counters.answered.incrementAndGet()
                         val out = if (verdict == DnsVerdict.FORWARD_SHORT_TTL) DnsResponses.clampTtls(answer) else answer
                         write(udp.reply(out))
                     }
@@ -178,8 +196,10 @@ class FilterVpnService : VpnService() {
         synchronized(this) {
             try {
                 output?.write(packet)
+                FilterStatus.Counters.written.incrementAndGet()
             } catch (e: IOException) {
-                Log.w(TAG, "tunnel write failed: ${e.javaClass.simpleName}")
+                FilterStatus.Counters.writeErrors.incrementAndGet()
+                Log.w(TAG, "tunnel write failed: ${e.javaClass.simpleName}: ${e.message}")
             }
         }
     }

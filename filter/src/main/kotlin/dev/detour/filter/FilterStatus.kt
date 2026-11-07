@@ -12,6 +12,22 @@ object FilterStatus {
     @Volatile var running = false
     @Volatile var lastHeartbeatMs = 0L
 
+    /** Diagnostic counters since the tunnel started. Numbers only, never names. */
+    object Counters {
+        val packets = java.util.concurrent.atomic.AtomicInteger()
+        val queries = java.util.concurrent.atomic.AtomicInteger()
+        val blocked = java.util.concurrent.atomic.AtomicInteger()
+        val forwarded = java.util.concurrent.atomic.AtomicInteger()
+        val answered = java.util.concurrent.atomic.AtomicInteger()
+        val unanswered = java.util.concurrent.atomic.AtomicInteger()
+        val written = java.util.concurrent.atomic.AtomicInteger()
+        val writeErrors = java.util.concurrent.atomic.AtomicInteger()
+
+        fun summary() = "packets=${packets.get()} queries=${queries.get()} blocked=${blocked.get()} " +
+            "forwarded=${forwarded.get()} answered=${answered.get()} unanswered=${unanswered.get()} " +
+            "written=${written.get()} writeErrors=${writeErrors.get()}"
+    }
+
     private const val PREFS = "filter_status"
     private const val K_DAY = "day"
     private const val K_COUNT = "blocked"

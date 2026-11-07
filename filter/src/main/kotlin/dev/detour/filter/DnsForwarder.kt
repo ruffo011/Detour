@@ -1,8 +1,5 @@
 package dev.detour.filter
 
-import android.net.ConnectivityManager
-import android.net.LinkProperties
-import android.net.Network
 import android.net.VpnService
 import android.util.Log
 import dev.detour.dns.DnsQuery
@@ -16,35 +13,6 @@ import java.net.InetSocketAddress
 import java.net.Socket
 
 /**
- * Tracks the DNS servers of the real (non-VPN) network, so allowed lookups go to the same
- * resolver the phone would use anyway. Updates on network changes.
- */
-class UpstreamDns(private val cm: ConnectivityManager) {
-    @Volatile var servers: List<InetAddress> = emptyList()
-        private set
-
-    private val callback = object : ConnectivityManager.NetworkCallback() {
-        override fun onLinkPropertiesChanged(network: Network, lp: LinkProperties) {
-            servers = lp.dnsServers
-        }
-
-        override fun onLost(network: Network) {
-            servers = emptyList()
-        }
-    }
-
-    fun start() {
-        // filter itself is not inside its own VPN, so its default network is the real one.
-        servers = cm.getLinkProperties(cm.activeNetwork)?.dnsServers.orEmpty()
-        cm.registerDefaultNetworkCallback(callback)
-    }
-
-    fun stop() {
-        runCatching { cm.unregisterNetworkCallback(callback) }
-    }
-}
-
-/**
  * Sends an allowed query to the upstream resolver over sockets excluded from the VPN
  * ([VpnService.protect]) and returns the answer. Handles timeouts (tries the next server) and
  * truncated answers (retries over TCP; returns the full answer if it fits the client's UDP size).
@@ -56,10 +24,13 @@ class DnsForwarder(
     private val fallback: () -> List<String>,
 ) {
     fun resolve(query: DnsQuery): ByteArray? {
-        val servers = (upstream() + fallback().mapNotNull { runCatching { InetAddress.getByName(it) }.getOrNull() })
-            .distinct().take(MAX_SERVERS)
+        val servers = UpstreamDns.sanitize(
+            upstream() + fallback().mapNotNull { runCatching { InetAddress.getByName(it) }.getOrNull() },
+        ).take(MAX_SERVERS)
         for (server in servers) {
-            val udp = runCatching { udp(server, query) }.getOrNull() ?: continue
+            val udp = runCatching { udp(server, query) }
+                .onFailure { Log.w(TAG, "upstream ${if (server is java.net.Inet6Address) "v6" else "v4"} failed: ${it.javaClass.simpleName}: ${it.message}") }
+                .getOrNull() ?: continue
             if (!DnsResponses.isTruncated(udp)) return udp
             val tcp = runCatching { tcp(server, query) }.getOrNull()
             return if (tcp != null && tcp.size <= DnsResponses.maxUdpSize(query)) tcp else udp
