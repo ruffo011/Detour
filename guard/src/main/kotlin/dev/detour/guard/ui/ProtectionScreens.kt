@@ -119,13 +119,17 @@ fun SettingsGuardScreen(onBack: () -> Unit) {
         val (screen, since) = app.recentScreens.calibrating ?: (null to 0L)
         if (screen != null) {
             app.recentScreens.calibrating = null
-            val picked = Calibration.pick(app.recentScreens.snapshot(), since)
+            val picked = Calibration.pick(app.recentScreens.snapshot(), since, screen.name)
             if (picked != null) {
                 val target = GuardTarget(screen.name, picked.packageName, picked.className)
                 scope.launch { submitChange(context, SettingsOp.AddGuardTarget(target), "Guard ${screen.label}") }
                 lastResult = "Recorded ${screen.label}: ${picked.className.substringAfterLast('.')}"
             } else {
-                lastResult = "Couldn't see which screen opened. Try again, and make sure the page fully opens."
+                lastResult = if (screen == GuardScreen.CHROME_SETTINGS) {
+                    "Nothing recorded: in Chrome, tap ⋮ → Settings and let it open before coming back. Chrome's normal screens are never guarded."
+                } else {
+                    "Couldn't see a Settings page open. Try again, and make sure the page fully opens."
+                }
             }
         }
         onPauseOrDispose { }

@@ -47,9 +47,28 @@ class SettingsGuardPolicy(private val permitMs: Long = 5 * 60_000L) {
 object Calibration {
     data class Screen(val packageName: String, val className: String, val atMs: Long)
 
+    /** Screen-type key for Chrome's settings (matches the guard app's GuardScreen name). */
+    const val CHROME_SETTINGS_KEY = "CHROME_SETTINGS"
+
     private val IGNORED = setOf("dev.detour.guard", "com.android.systemui", "com.google.android.apps.nexuslauncher", "android")
 
-    fun pick(screens: List<Screen>, sinceMs: Long, ignoredPackages: Set<String> = emptySet()): Screen? =
-        screens.filter { it.atMs >= sinceMs && it.packageName !in IGNORED && it.packageName !in ignoredPackages }
-            .minByOrNull { it.atMs }
+    /**
+     * Whether a recorded screen can be a guard target for [key]. This stops calibration from ever
+     * guarding an app's ordinary screens: for Chrome, only a settings screen counts (opening Chrome
+     * first shows its main browsing screen, which must never be guarded); for system pages, only
+     * screens of the Settings app or the permission controller count.
+     */
+    fun isValid(key: String, packageName: String, className: String): Boolean = when (key) {
+        CHROME_SETTINGS_KEY -> className.contains("settings", ignoreCase = true) || className.contains("preferences", ignoreCase = true)
+        else -> packageName.contains("settings", ignoreCase = true) || packageName.contains("permissioncontroller", ignoreCase = true)
+    }
+
+    fun isValid(target: GuardTarget) = isValid(target.key, target.packageName, target.className)
+
+    /** The first screen since [sinceMs] that is a valid target for [key]. */
+    fun pick(screens: List<Screen>, sinceMs: Long, key: String, ignoredPackages: Set<String> = emptySet()): Screen? =
+        screens.filter {
+            it.atMs >= sinceMs && it.packageName !in IGNORED && it.packageName !in ignoredPackages &&
+                isValid(key, it.packageName, it.className)
+        }.minByOrNull { it.atMs }
 }

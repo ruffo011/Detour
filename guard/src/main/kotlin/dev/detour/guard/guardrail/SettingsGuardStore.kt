@@ -1,6 +1,7 @@
 package dev.detour.guard.guardrail
 
 import android.content.Context
+import dev.detour.core.settings.Calibration
 import dev.detour.core.settings.GuardTarget
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +16,7 @@ enum class GuardScreen(val label: String, val hint: String? = null) {
     VPN("VPN settings"),
     PRIVATE_DNS("Private DNS (Network & internet)", "Guarding this also pauses the Network & internet page, which has Wi-Fi."),
     BATTERY("Battery optimization settings"),
-    CHROME_SETTINGS("Chrome's settings", "Open Chrome yourself, tap ⋮ → Settings, then come back."),
+    CHROME_SETTINGS("Chrome's settings", "After Open, tap ⋮ → Settings in Chrome, then come back. Chrome's normal screens are never guarded."),
 }
 
 /**
@@ -34,7 +35,9 @@ class SettingsGuardStore(context: Context) {
         _enabled.value = on
     }
 
-    fun add(target: GuardTarget) = saveTargets(_targets.value + target)
+    fun add(target: GuardTarget) {
+        if (Calibration.isValid(target)) saveTargets(_targets.value + target)
+    }
     fun remove(target: GuardTarget) = saveTargets(_targets.value - target)
 
     /** True if this screen type has a target recorded by calibration on this phone. */
@@ -43,10 +46,17 @@ class SettingsGuardStore(context: Context) {
 
     private fun loadTargets(): Set<GuardTarget> {
         val saved = prefs.getStringSet(K_TARGETS, null) ?: return DEFAULT_TARGETS
-        return saved.mapNotNull { s ->
+        val parsed = saved.mapNotNull { s ->
             val p = s.split('|')
             if (p.size == 3) GuardTarget(p[0], p[1], p[2]) else null
         }.toSet()
+        // Drop targets calibration should never have recorded (e.g. Chrome's main browsing screen,
+        // which made every Chrome open pause). This repairs bad data; it isn't a loosening choice.
+        val valid = parsed.filter { Calibration.isValid(it) }.toSet()
+        if (valid.size != parsed.size) {
+            prefs.edit().putStringSet(K_TARGETS, valid.map { "${it.key}|${it.packageName}|${it.className}" }.toSet()).apply()
+        }
+        return valid
     }
 
     private fun saveTargets(t: Set<GuardTarget>) {
