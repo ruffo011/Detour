@@ -55,7 +55,7 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit) {
             Section("Needs a decision", all.filter { it.resolution.needsDecision }),
             Section("Blocked", all.filter { it.resolution.editable && !it.resolution.needsDecision && it.resolution.category == AppCategory.BLOCKED }),
             Section("Distracting", all.filter { it.resolution.editable && !it.resolution.needsDecision && it.resolution.category == AppCategory.DISTRACTING }),
-            Section("Allowed", all.filter { it.resolution.editable && it.resolution.category == AppCategory.ALLOWED }),
+            Section("Allowed", all.filter { it.resolution.editable && !it.resolution.needsDecision && it.resolution.category == AppCategory.ALLOWED }),
             Section("Set by Detour", all.filter { !it.resolution.editable }),
         ).filter { it.rows.isNotEmpty() }
 
@@ -120,6 +120,7 @@ private fun reasonText(row: AppRow): String? = when (row.resolution.reason) {
     CategoryReason.OTHER_BROWSER -> "Blocked: only one browser is allowed, so all browsing is filtered"
     CategoryReason.SUGGESTED -> "Suggested"
     CategoryReason.UNCLASSIFIED -> "Treated as Distracting until you choose"
+    CategoryReason.NEW_APP -> "New: Allowed for now, Distracting ${timeUntil(row.resolution.decideByMs ?: 0)} unless you choose"
     CategoryReason.USER_CHOICE, CategoryReason.NOT_LAUNCHABLE -> null
 }
 

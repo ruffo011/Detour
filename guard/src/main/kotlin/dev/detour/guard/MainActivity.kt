@@ -28,19 +28,28 @@ import dev.detour.guard.ui.WeeklyReviewScreen
 import dev.detour.guard.ui.BudgetScreen
 import dev.detour.guard.ui.HomeScreen
 import dev.detour.guard.ui.theme.DetourTheme
+import android.content.Intent
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import dev.detour.guard.newapps.NewAppNotifier
 
 private enum class Screen { HOME, APPS, BUDGET, ALTERNATIVES, BLOCKLIST, PENDING, SETTINGS_GUARD, BACKUP, SETUP, REVIEW }
 
 class MainActivity : ComponentActivity() {
+    /** Set when opened from a new-app notification: jump to App categories. */
+    private var openAppsRequest by mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val hasNetwork = requestsNetworkPermission()
+        if (intent.getBooleanExtra(NewAppNotifier.EXTRA_OPEN_APPS, false)) openAppsRequest++
         setContent {
             DetourTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     // Until setup is finished, open straight into the checklist.
                     var screen by rememberSaveable { mutableStateOf(if (detourApp.setup.completed.value) Screen.HOME else Screen.SETUP) }
+                    LaunchedEffect(openAppsRequest) { if (openAppsRequest > 0) screen = Screen.APPS }
                     val back = { screen = Screen.HOME }
                     if (screen != Screen.HOME) BackHandler(onBack = back)
                     when (screen) {
@@ -76,6 +85,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra(NewAppNotifier.EXTRA_OPEN_APPS, false)) openAppsRequest++
     }
 
     /** Reads this app's own installed permissions, so you can see the guarantee on the phone. */

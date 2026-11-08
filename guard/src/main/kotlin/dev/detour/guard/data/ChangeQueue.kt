@@ -7,6 +7,7 @@ import dev.detour.core.settings.PendingChange
 import dev.detour.core.settings.ProtectedSettings
 import dev.detour.core.settings.SettingsOp
 import dev.detour.guard.DetourApp
+import dev.detour.guard.newapps.NewAppNotifier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
@@ -100,7 +101,10 @@ class ChangeQueue(private val app: DetourApp, private val dao: PendingDao) {
     /** Writes one op to wherever that setting lives. Never call from UI code: use [submit]. */
     private suspend fun applyDirect(op: SettingsOp) {
         when (op) {
-            is SettingsOp.SetCategory -> app.classifications.setChoice(op.packageName, op.category)
+            is SettingsOp.SetCategory -> {
+                app.classifications.setChoice(op.packageName, op.category)
+                NewAppNotifier.cancel(app, op.packageName) // decided: the "new app" prompt can go
+            }
             is SettingsOp.SetDailyBudget,
             is SettingsOp.SetOpensCap,
             is SettingsOp.SetAllowedHours,

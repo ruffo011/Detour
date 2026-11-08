@@ -42,6 +42,8 @@ import dev.detour.core.budget.BudgetSettings
 import dev.detour.core.health.HealthIssue
 import dev.detour.core.review.WeeklyReview
 import dev.detour.core.settings.SettingsOp
+import dev.detour.guard.newapps.NewApp
+import dev.detour.guard.newapps.NewAppNotifier
 import dev.detour.guard.setup.SetupProgress
 import dev.detour.guard.setup.SetupStep
 import androidx.compose.runtime.mutableStateOf
@@ -94,6 +96,7 @@ fun HomeScreen(
     val reviewViewed by app.setup.reviewViewedMs.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var setupSteps by remember { mutableStateOf<List<SetupStep>>(emptyList()) }
+    var newApps by remember { mutableStateOf<List<NewApp>>(emptyList()) }
     var refreshTick by remember { mutableIntStateOf(0) }
     val status = remember(refreshTick) { readStatus(context) }
 
@@ -104,6 +107,7 @@ fun HomeScreen(
         val job = scope.launch {
             app.changes.applyDue()
             setupSteps = withContext(Dispatchers.IO) { SetupProgress.steps(context) }
+            newApps = withContext(Dispatchers.IO) { NewAppNotifier.newApps(context) }
             delay(800) // give a just-started detector a moment before checking it
             withContext(Dispatchers.IO) { app.health.check() }
         }
@@ -136,6 +140,20 @@ fun HomeScreen(
             val shown = h.issues.filter { it !in PERMISSION_ISSUES }
             if (shown.isNotEmpty()) HealthBanner(shown) { issue -> fix(context, issue) }
             FilterLine(h)
+        }
+
+        if (newApps.isNotEmpty()) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    newApps.sortedBy { it.decideByMs }.forEach {
+                        Text(
+                            "New app: ${it.app.label}. Allowed for now, Distracting ${timeUntil(it.decideByMs)} unless you choose.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    OutlinedButton(onClick = onOpenApps) { Text("Choose categories") }
+                }
+            }
         }
 
         val stepsLeft = setupSteps.count { !it.done }

@@ -34,6 +34,7 @@ import dev.detour.guard.intervene.CheckInActivity
 import dev.detour.guard.intervene.InterventionActivity
 import dev.detour.guard.intervene.InterventionInfo
 import dev.detour.guard.intervene.InterventionMode
+import dev.detour.guard.newapps.NewAppNotifier
 import dev.detour.guard.system.Permissions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -89,7 +90,11 @@ class DetectorService : Service() {
     }
 
     private val packageReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) = detourApp.catalog.invalidate()
+        override fun onReceive(context: Context, intent: Intent) {
+            detourApp.catalog.invalidate()
+            // A newly installed app: ask for its category right away.
+            scope.launch(Dispatchers.IO) { runCatching { NewAppNotifier.check(this@DetectorService) } }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -232,7 +237,10 @@ class DetectorService : Service() {
         }
         if (now - lastHealthCheckMs > HEALTH_CHECK_MS) {
             lastHealthCheckMs = now
-            withContext(Dispatchers.IO) { app.health.check(detectorRunning = true) }
+            withContext(Dispatchers.IO) {
+                app.health.check(detectorRunning = true)
+                runCatching { NewAppNotifier.check(this@DetectorService) }
+            }
             app.changes.applyDue(now) // loosening changes whose 24 hours are up
         }
         heartbeat(now)

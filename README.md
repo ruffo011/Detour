@@ -125,8 +125,14 @@ Installing through Android Studio / `adb` (section 3) often avoids this block en
 - **Categories.** Open Detour → **Choose app categories**. Each app is *Allowed*, *Distracting*
   or *Blocked*. Some apps are set by Detour and can't be changed: the phone app, emergency,
   launcher, keyboard, system UI, Settings, Detour itself, Chrome (your one allowed browser), and
-  every other browser (always Blocked, so all browsing goes through the filter). New apps start
-  as Distracting and show up under "Needs a decision".
+  every other browser (always Blocked, so all browsing goes through the filter).
+- **New apps** count as **Allowed for their first 24 hours** (based on Android's install time).
+  You get a notification with **Allowed / Distracting / Blocked** buttons, and the app shows
+  under "Needs a decision" with a countdown. If you haven't chosen after 24 hours, it counts as
+  Distracting. Choosing Allowed within the 24 hours keeps it Allowed and applies immediately.
+  Suggested apps (e.g. Instagram) don't get the 24 hours even if reinstalled, a new browser is
+  still Blocked, and earlier choices survive a reinstall. Apps that were installed long ago and
+  are still unclassified stay Distracting.
 - **Watching.** Once Usage access and Display over other apps are on, a silent "Detour is on"
   notification appears. That's Android's required sign that a background service is running. You
   can minimize it by long-pressing it. The service checks the foreground app about every 0.75 s

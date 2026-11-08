@@ -62,7 +62,8 @@
 
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -107,6 +108,11 @@
             android:exported="true"
             android:readPermission="dev.detour.permission.IPC"
             android:writePermission="dev.detour.permission.IPC" />
+
+        <!-- Allowed / Distracting / Blocked buttons on the new-app notification. -->
+        <receiver
+            android:name=".newapps.NewAppChoiceReceiver"
+            android:exported="false" />
 
         <!-- Re-posts the "protection is partly off" notification if swiped away. -->
         <receiver
